@@ -57,18 +57,20 @@ with graph.as_default():
         G_zero, latent_z, z_noised, epsilon_layer, z_noise,e_var = edp_autoencoder(input_shape, n_filters, filter_sizes,z_dim, A_true_flat, Z_zero, var_A, var_G, init_epsilon, Z_S)
         
         G_sample, latent_z, z_noised, epsilon_layer, z_noise,e_var = edp_autoencoder(input_shape, n_filters, filter_sizes,z_dim, A_true_flat, Z_noise, var_A, var_G, init_epsilon, Z_S)
-             
+
+        G_hacked = hacker(input_shape, n_filters, filter_sizes,z_dim, G_sample, var_H)
         D_real_logits = discriminator(A_true_flat, Y, var_D)
         D_fake_logits = discriminator(G_sample, Y_fake, var_D)
         G_fake_logits = discriminator(G_sample, Y, var_D)
         
         dp_epsilon = tf.reduce_mean(epsilon_layer)
         
+        privacy_gain = tf.reduce_mean(tf.pow(A_true_flat - G_hacked,2))         
         G_zero_loss = tf.reduce_mean(tf.pow(A_true_flat - G_zero,2))
         A_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample,2))  
         D_loss = tf.reduce_mean(D_fake_logits) + tf.reduce_mean(D_real_logits)        
-        G_loss = tf.reduce_mean(G_fake_logits) + tf.reduce_mean(G_zero_loss)
-
+        G_loss = -tf.reduce_mean(D_fake_logits) + tf.reduce_mean(G_fake_logits) + tf.reduce_mean(G_zero_loss) - privacy_gain
+        H_loss = privacy_gain 
         latent_max = tf.reduce_max(latent_z, axis = 0)
         latent_min = tf.reduce_min(latent_z, axis = 0)
         
@@ -78,6 +80,7 @@ with graph.as_default():
         tf.summary.scalar('G_loss',tf.reduce_mean(D_fake_logits)) 
         tf.summary.scalar('G_zero_loss',tf.reduce_mean(G_zero_loss))
         tf.summary.scalar('A_loss', A_loss)
+        tf.summary.scalar('privacy_gain',privacy_gain)        
         tf.summary.scalar('epsilon', dp_epsilon)
         tf.summary.histogram('epsilon_layer',epsilon_layer)
         tf.summary.histogram('z_original',  latent_z) 
@@ -89,6 +92,7 @@ with graph.as_default():
         A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(A_loss,var_list=var_A, global_step=global_step)      
         D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D, global_step=global_step)
         G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
+        H_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(H_loss,var_list=var_H, global_step=global_step)
         clip_epsilon =  e_var.assign(tf.maximum(epsilon_layer,1e-8))
         
         timestamp = str(int(time.time()))        
@@ -183,7 +187,14 @@ with graph.as_default():
                                                  Y_fake: Y_fake_mb, 
                                                  Z_noise: enc_noise,
                                                  Z_zero: enc_zero,
-                                                 Z_S: z_sensitivity})                               
+                                                 Z_S: z_sensitivity})                             
+            _, H_loss_curr = sess.run([H_solver, H_loss],
+                                      feed_dict={X: X_mb, 
+                                                 Y: Y_mb, 
+                                                 Y_fake: Y_fake_mb, 
+                                                 Z_noise: enc_noise,
+                                                 Z_zero: enc_zero,
+                                                 Z_S: z_sensitivity}) 
             summary, _, G_loss_curr, dp_epsilon_curr, _ = sess.run([merged, G_solver, G_loss, dp_epsilon, clip_epsilon],
                                       feed_dict={X: X_mb, 
                                                  Y: Y_mb, 
@@ -201,7 +212,7 @@ with graph.as_default():
                 Xt_mb = x_test[:mb_size]
                 Yt_mb = y_test[:mb_size] 
                 Yt_mb = pad_along_axis(Yt_mb, NUM_CLASSES+1,axis=1)
-                G_sample_curr = sess.run(G_sample,
+                G_sample_curr, re_fake_curr = sess.run([G_sample,G_hacked],
                                          feed_dict={X: X_mb, 
                                                     Y: Yt_mb, 
                                                     Y_fake: Y_fake_mb, 
@@ -209,8 +220,9 @@ with graph.as_default():
                                                     Z_zero: enc_zero,
                                                     Z_S: z_sensitivity})
                 samples_flat = tf.reshape(G_sample_curr,[-1,width,height,channels]).eval()
-                img_set = np.append(Xt_mb[:256], samples_flat[:256], axis=0)                  
-
+                img_set = np.append(Xt_mb[:256], samples_flat[:256], axis=0)         
+                samples_flat = tf.reshape(re_fake_curr,[-1,width,height,channels]).eval() 
+                img_set = np.append(img_set, samples_flat[:256], axis=0)
                 fig = plot(img_set, width, height, channels)
                 plt.savefig('results/epsilon_DP/dc_out_{}/{}.png'.format(dataset,str(i).zfill(3)), bbox_inches='tight')
                 plt.close(fig)
