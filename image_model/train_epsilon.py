@@ -36,6 +36,7 @@ with graph.as_default():
         X = tf.placeholder(tf.float32, shape=[None, width, height,channels])
         Z_S = tf.placeholder(tf.float32, shape=[None,  z_dim])        
         Z_noise = tf.placeholder(tf.float32, shape=[None,  z_dim])
+        Z_zero = tf.placeholder(tf.float32, shape=[None,  z_dim])        
         Y = tf.placeholder(tf.float32, shape=[None,  NUM_CLASSES+1])
         Y_fake = tf.placeholder(tf.float32, shape=[None,  NUM_CLASSES+1])
         A_true_flat = X
@@ -53,7 +54,8 @@ with graph.as_default():
         var_D = [W1,W2,W3,W4,b4] 
         
         global_step = tf.Variable(0, name="global_step", trainable=False)               
-
+        G_zero, latent_z, z_noised, epsilon_layer, z_noise,e_var = edp_autoencoder(input_shape, n_filters, filter_sizes,z_dim, A_true_flat, Z_zero, var_A, var_G, init_epsilon, Z_S)
+        
         G_sample, latent_z, z_noised, epsilon_layer, z_noise,e_var = edp_autoencoder(input_shape, n_filters, filter_sizes,z_dim, A_true_flat, Z_noise, var_A, var_G, init_epsilon, Z_S)
              
         D_real_logits = discriminator(A_true_flat, Y, var_D)
@@ -61,10 +63,11 @@ with graph.as_default():
         G_fake_logits = discriminator(G_sample, Y, var_D)
         
         dp_epsilon = tf.reduce_mean(epsilon_layer)
-
+        
+        G_zero_loss = tf.reduce_mean(tf.pow(A_true_flat - G_zero,2))
         A_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample,2))  
         D_loss = tf.reduce_mean(D_fake_logits) + tf.reduce_mean(D_real_logits)        
-        G_loss = tf.reduce_mean(G_fake_logits)
+        G_loss = tf.reduce_mean(G_fake_logits) + tf.reduce_mean(G_zero_loss)
 
         latent_max = tf.reduce_max(latent_z, axis = 0)
         latent_min = tf.reduce_min(latent_z, axis = 0)
@@ -72,7 +75,8 @@ with graph.as_default():
         tf.summary.image('Original',A_true_flat)       
         tf.summary.image('fake',G_sample)
         tf.summary.scalar('D_loss', D_loss)      
-        tf.summary.scalar('G_loss',tf.reduce_mean(D_fake_logits))
+        tf.summary.scalar('G_loss',tf.reduce_mean(D_fake_logits)) 
+        tf.summary.scalar('G_zero_loss',tf.reduce_mean(G_zero_loss))
         tf.summary.scalar('A_loss', A_loss)
         tf.summary.scalar('epsilon', dp_epsilon)
         tf.summary.histogram('epsilon_layer',epsilon_layer)
@@ -123,6 +127,7 @@ with graph.as_default():
                                                             Y: Y_mb, 
                                                             Y_fake: Y_fake_mb, 
                                                             Z_noise: enc_noise, 
+                                                            Z_zero: enc_noise,
                                                             Z_S: enc_noise})
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
@@ -146,7 +151,8 @@ with graph.as_default():
                                           feed_dict={X: X_mb, 
                                                      Y: Y_mb, 
                                                      Y_fake: Y_fake_mb, 
-                                                     Z_noise: enc_noise, 
+                                                     Z_noise: enc_noise,
+                                                     Z_zero: enc_noise,
                                                      Z_S: enc_noise})
             if idx == 0:
                 z_max = max_curr
@@ -169,18 +175,21 @@ with graph.as_default():
                 Y_mb = next_batch(mb_size, y_train)
                 Y_mb = pad_along_axis(Y_mb, NUM_CLASSES+1,axis=1)
                     
-            enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
+            enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
+            enc_zero = np.random.laplace(0.0,0.0,[mb_size,z_dim]).astype(np.float32)
             _, D_loss_curr = sess.run([D_solver, D_loss],
                                       feed_dict={X: X_mb, 
                                                  Y: Y_mb, 
                                                  Y_fake: Y_fake_mb, 
-                                                 Z_noise: enc_noise, 
+                                                 Z_noise: enc_noise,
+                                                 Z_zero: enc_zero,
                                                  Z_S: z_sensitivity})                               
             summary, _, G_loss_curr, dp_epsilon_curr, _ = sess.run([merged, G_solver, G_loss, dp_epsilon, clip_epsilon],
                                       feed_dict={X: X_mb, 
                                                  Y: Y_mb, 
                                                  Y_fake: Y_fake_mb, 
-                                                 Z_noise: enc_noise, 
+                                                 Z_noise: enc_noise,
+                                                 Z_zero: enc_zero,
                                                  Z_S: z_sensitivity})
             current_step = tf.train.global_step(sess, global_step)
             train_writer.add_summary(summary,current_step)
@@ -197,6 +206,7 @@ with graph.as_default():
                                                     Y: Yt_mb, 
                                                     Y_fake: Y_fake_mb, 
                                                     Z_noise: enc_noise, 
+                                                    Z_zero: enc_zero,
                                                     Z_S: z_sensitivity})
                 samples_flat = tf.reshape(G_sample_curr,[-1,width,height,channels]).eval()
                 img_set = np.append(Xt_mb[:256], samples_flat[:256], axis=0)                  
