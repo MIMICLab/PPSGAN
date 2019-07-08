@@ -73,7 +73,7 @@ with graph.as_default():
         G_zero_loss = tf.reduce_mean(tf.pow(A_true_flat - G_zero,2)) 
         A_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample,2))  
         D_loss = tf.reduce_mean(D_fake_logits) + tf.reduce_mean(D_real_logits)        
-        G_loss = -tf.reduce_mean(D_fake_logits) + tf.reduce_mean(G_fake_logits) + tf.reduce_mean(G_zero_loss) - privacy_gain
+        G_loss = tf.reduce_mean(G_fake_logits) + tf.reduce_mean(G_zero_loss) - privacy_gain
         H_loss = privacy_gain 
         
         latent_max = tf.reduce_max(latent_z, axis = 0)
