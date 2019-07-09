@@ -80,7 +80,7 @@ with graph.as_default():
         
         gp = gradient_penalty(G_sample, X, mb_size, var_D_S)
         D_S_loss = tf.reduce_mean(D_fake_logits) - tf.reduce_mean(D_real_logits) +10.0*gp 
-        D_C_loss = tf.reduce_mean(C_fake_logits) + tf.reduce_mean(C_real_logits)
+        D_C_loss = tf.reduce_mean(C_real_logits)
         D_loss = D_S_loss + D_C_loss        
         G_S_loss = - tf.reduce_mean(D_fake_logits)
         G_C_loss = tf.reduce_mean(C_fake_logits)
@@ -173,9 +173,9 @@ with graph.as_default():
                 enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
                 _, D_curr, D_S_curr, D_C_curr = sess.run([D_solver, D_loss, D_S_loss, D_C_loss],
                                                      feed_dict={X: X_mb, 
-                                                     Y: Y_mb, 
-                                                     Z_noise: enc_noise, 
-                                                     Z_zero: enc_zero})
+                                                                Y: Y_mb, 
+                                                                Z_noise: enc_noise, 
+                                                                Z_zero: enc_zero})
                 
             summary, _, G_curr, G_S_curr, G_C_curr, G_z_curr = sess.run([merged, G_solver, G_loss,G_S_loss, G_C_loss, G_zero_loss],
                                       feed_dict={X: X_mb, 
@@ -194,7 +194,7 @@ with graph.as_default():
                 enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)  
                 enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)
                 G_sample_curr, re_fake_curr = sess.run([G_sample, G_zero],
-                                                       feed_dict={X: X_mb, 
+                                                       feed_dict={X: Xt_mb, 
                                                                   Y: Yt_mb, 
                                                                   Z_noise: enc_noise, 
                                                                   Z_zero: enc_zero})
