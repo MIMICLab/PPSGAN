@@ -13,10 +13,10 @@ dataset = sys.argv[1]
 model_name = sys.argv[2]
 prev_iter = int(sys.argv[3])
 init_epsilon = 1.0
+init_delta = 1e-5
 NUM_CLASSES = 10
+mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
 
-mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test = data_loader(dataset)
-    
     
 graph = tf.Graph()
 with graph.as_default():
@@ -28,23 +28,24 @@ with graph.as_default():
         input_shape=[None, width, height, channels]
         filter_sizes=[5, 5, 5, 5, 5]        
         hidden = 128
-        z_dim = 128          
-
-     
+        z_dim = 128            
+        z_sensitivity = np.zeros(z_dim)
+ 
         n_filters=[channels, hidden, hidden*2, hidden*4]
             
         X = tf.placeholder(tf.float32, shape=[None, width, height,channels])
-        Z_S = tf.placeholder(tf.float32, shape=[None,  z_dim])        
+        Z_S = tf.placeholder(tf.float32, shape=[None,  z_dim])         
         Z_noise = tf.placeholder(tf.float32, shape=[None,  z_dim])
-        Z_zero = tf.placeholder(tf.float32, shape=[None,  z_dim])        
+        Z_zero = tf.placeholder(tf.float32, shape=[None,  z_dim])
         Y = tf.placeholder(tf.float32, shape=[None,  NUM_CLASSES+1])
         Y_fake = tf.placeholder(tf.float32, shape=[None,  NUM_CLASSES+1])
         A_true_flat = X
+
         
         #autoencoder variables
-        var_A = []
         var_G = []
         var_H = []
+        var_A = []
         #discriminator variables
         W1 = tf.Variable(he_normal_init([5,5,channels, hidden//2]))
         W2 = tf.Variable(he_normal_init([5,5, hidden//2,hidden]))
@@ -53,68 +54,77 @@ with graph.as_default():
         b4 = tf.Variable(tf.zeros(shape=[NUM_CLASSES+1])) #num_class+1
         var_D = [W1,W2,W3,W4,b4] 
         
-        global_step = tf.Variable(0, name="global_step", trainable=False)               
-        G_zero, latent_z, z_noised, epsilon_layer, z_noise,e_var = edp_autoencoder(input_shape, n_filters, filter_sizes,z_dim, A_true_flat, Z_zero, var_A, var_G, init_epsilon, Z_S)
-        
-        G_sample, latent_z, z_noised, epsilon_layer, z_noise,e_var = edp_autoencoder(input_shape, n_filters, filter_sizes,z_dim, A_true_flat, Z_noise, var_A, var_G, init_epsilon, Z_S)
+        global_step = tf.Variable(0, name="global_step", trainable=False)        
 
-        G_hacked = hacker(input_shape, n_filters, filter_sizes,z_dim, G_sample, var_H)
+        G_zero, latent_z, z_noised, epsilon_layer, delta_layer, z_noise,e_var,d_var = eddp_autoencoder(input_shape, n_filters, filter_sizes,z_dim, A_true_flat, Z_zero, var_A, var_G,init_epsilon,init_delta,Z_S)
+        
+        G_sample, latent_z, z_noised, epsilon_layer, delta_layer, z_noise,e_var,d_var = eddp_autoencoder(input_shape, n_filters, filter_sizes,z_dim, A_true_flat, Z_noise,var_A, var_G,init_epsilon,init_delta,Z_S)
+        
+        #G_hacked = hacker(input_shape, n_filters, filter_sizes,z_dim, G_sample, var_H)
+        
         D_real_logits = discriminator(A_true_flat, Y, var_D)
         D_fake_logits = discriminator(G_sample, Y_fake, var_D)
         G_fake_logits = discriminator(G_sample, Y, var_D)
         
         dp_epsilon = tf.reduce_mean(epsilon_layer)
+        dp_delta = tf.reduce_mean(delta_layer)
         
-        privacy_gain = tf.reduce_mean(tf.pow(A_true_flat - G_hacked,2))         
-        G_zero_loss = tf.reduce_mean(tf.pow(A_true_flat - G_zero,2))
+        #privacy_gain = tf.reduce_mean(tf.pow(A_true_flat - G_hacked,2))  
+        G_zero_loss = tf.reduce_mean(tf.pow(A_true_flat - G_zero,2)) 
         A_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample,2))  
         D_loss = tf.reduce_mean(D_fake_logits) + tf.reduce_mean(D_real_logits)        
-        G_loss = tf.reduce_mean(G_fake_logits) + tf.reduce_mean(G_zero_loss) - privacy_gain
-        H_loss = privacy_gain 
+        G_loss = tf.reduce_mean(G_fake_logits) + tf.reduce_mean(G_zero_loss)
+        #H_loss = privacy_gain 
+        
         latent_max = tf.reduce_max(latent_z, axis = 0)
         latent_min = tf.reduce_min(latent_z, axis = 0)
         
-        tf.summary.image('Original',A_true_flat)       
-        tf.summary.image('fake',G_sample)
+        tf.summary.image('Original',A_true_flat)
+        tf.summary.image('fake',G_sample)      
+        tf.summary.scalar('A_loss', A_loss)
         tf.summary.scalar('D_loss', D_loss)      
         tf.summary.scalar('G_loss',tf.reduce_mean(D_fake_logits)) 
         tf.summary.scalar('G_zero_loss',tf.reduce_mean(G_zero_loss))
-        tf.summary.scalar('A_loss', A_loss)
-        tf.summary.scalar('privacy_gain',privacy_gain)        
+        #tf.summary.scalar('privacy_gain', privacy_gain)         
         tf.summary.scalar('epsilon', dp_epsilon)
+        tf.summary.scalar('delta', dp_delta)        
         tf.summary.histogram('epsilon_layer',epsilon_layer)
+        tf.summary.histogram('delta_layer',delta_layer)        
         tf.summary.histogram('z_original',  latent_z) 
         tf.summary.histogram('z_noise_applied',z_noised) 
-        tf.summary.histogram('z_noise',z_noise) 
+        tf.summary.histogram('z_noise',z_noise)         
         merged = tf.summary.merge_all()
 
         num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-        A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(A_loss,var_list=var_A, global_step=global_step)      
+        
+        A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(A_loss,var_list=var_A, global_step=global_step)       
         D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D, global_step=global_step)
         G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
-        H_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(H_loss,var_list=var_H, global_step=global_step)
+        #H_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(H_loss,var_list=var_H, global_step=global_step)
         clip_epsilon =  e_var.assign(tf.maximum(epsilon_layer,1e-8))
-        
-        timestamp = str(int(time.time()))        
-        if not os.path.exists('results/epsilon_DP/'):
-            os.makedirs('results/epsilon_DP/')        
-        out_dir = os.path.abspath(os.path.join(os.path.curdir, "results/epsilon_DP/models/{}_".format(dataset) + model_name))
+        clip_delta =  d_var.assign(tf.clip_by_value(epsilon_layer,1e-8, 1.0 - 1e-8))
+
+        timestamp = str(int(time.time()))
+        if not os.path.exists('results/epsilon_delta_DP/'):
+            os.makedirs('results/epsilon_delta_DP/')        
+        out_dir = os.path.abspath(os.path.join(os.path.curdir, "results/epsilon_delta_DP/models/{}_".format(dataset) + model_name))
         checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
         checkpoint_prefix = os.path.join(checkpoint_dir, "model")
-        if not os.path.exists('results/epsilon_DP/models/'):
-            os.makedirs('results/epsilon_DP/models/')
+        if not os.path.exists('results/epsilon_delta_DP/models/'):
+            os.makedirs('results/epsilon_delta_DP/models/')
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
-        if not os.path.exists('results/epsilon_DP/dc_out_{}/'.format(dataset)):
-            os.makedirs('results/epsilon_DP/dc_out_{}/'.format(dataset))         
+        if not os.path.exists('results/epsilon_delta_DP/dc_out_{}/'.format(dataset)):
+            os.makedirs('results/epsilon_delta_DP/dc_out_{}/'.format(dataset))           
 
-        train_writer = tf.summary.FileWriter('results/graphs/epsilon_DP/{}'.format(dataset),sess.graph)
+        train_writer = tf.summary.FileWriter('results/graphs/epsilon_delta_DP/{}'.format(dataset),sess.graph)
         saver = tf.train.Saver(tf.global_variables())
         sess.run(tf.global_variables_initializer())
+        
         Y_fake_mb = np.tile([0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,1.],(mb_size,1)).astype(np.float32) 
         if prev_iter != 0:
-            saver.restore(sess,tf.train.latest_checkpoint(checkpoint_dir))  
-        i = prev_iter   
+            saver.restore(sess,tf.train.latest_checkpoint(checkpoint_dir))        
+        i = prev_iter 
         if prev_iter == 0:
             for idx in range(num_batches_per_epoch*100):
                 if dataset == 'mnist':
@@ -124,8 +134,9 @@ with graph.as_default():
                 else:
                     X_mb = next_batch(mb_size, x_train)
                     Y_mb = next_batch(mb_size, y_train)
-                    Y_mb = pad_along_axis(Y_mb, NUM_CLASSES+1,axis=1)  
-                enc_noise = np.random.laplace(0.0,0.0,[mb_size,z_dim]).astype(np.float32)  
+                    Y_mb = pad_along_axis(Y_mb, NUM_CLASSES+1,axis=1)
+                enc_noise = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32)  
+                
                 summary,_, A_loss_curr= sess.run([merged, A_solver, A_loss],
                                                  feed_dict={X: X_mb, 
                                                             Y: Y_mb, 
@@ -133,6 +144,7 @@ with graph.as_default():
                                                             Z_noise: enc_noise, 
                                                             Z_zero: enc_noise,
                                                             Z_S: enc_noise})
+                
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
                 if idx % 100 == 0:
@@ -140,7 +152,6 @@ with graph.as_default():
                 if idx % 1000 == 0: 
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                     print('Saved model at {} at step {}'.format(path, current_step))                    
-                    
         for idx in range(num_batches_per_epoch):
             if dataset == 'mnist':
                 X_mb, Y_mb = x_train.train.next_batch(mb_size)
@@ -149,8 +160,8 @@ with graph.as_default():
             else:
                 X_mb = next_batch(mb_size, x_train) 
                 Y_mb = next_batch(mb_size, y_train)
-                Y_mb = pad_along_axis(Y_mb, NUM_CLASSES+1,axis=1)   
-            enc_noise = np.random.laplace(0.0,0.0,[mb_size,z_dim]).astype(np.float32)                  
+                Y_mb = pad_along_axis(Y_mb, NUM_CLASSES+1,axis=1)
+            enc_noise = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32)                  
             max_curr, min_curr = sess.run([latent_max,latent_min], 
                                           feed_dict={X: X_mb, 
                                                      Y: Y_mb, 
@@ -167,35 +178,34 @@ with graph.as_default():
         z_sensitivity = np.abs(np.subtract(z_max,z_min))
         print("Approximated Global Sensitivity:") 
         print(z_sensitivity)        
-        z_sensitivity = np.tile(z_sensitivity,(mb_size,1))
-      
+        z_sensitivity = np.tile(z_sensitivity,(mb_size,1))                        
         for it in range(num_batches_per_epoch*1000):
-            if dataset == 'mnist':
-                X_mb, Y_mb = x_train.train.next_batch(mb_size)
-                X_mb = np.reshape(X_mb,[-1,28,28,1])
-                Y_mb = pad_along_axis(Y_mb, NUM_CLASSES+1,axis=1)
-            else:
-                X_mb = next_batch(mb_size, x_train)
-                Y_mb = next_batch(mb_size, y_train)
-                Y_mb = pad_along_axis(Y_mb, NUM_CLASSES+1,axis=1)
-                    
-            enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
-            enc_zero = np.random.laplace(0.0,0.0,[mb_size,z_dim]).astype(np.float32)
-            _, D_loss_curr = sess.run([D_solver, D_loss],
-                                      feed_dict={X: X_mb, 
-                                                 Y: Y_mb, 
-                                                 Y_fake: Y_fake_mb, 
-                                                 Z_noise: enc_noise,
-                                                 Z_zero: enc_zero,
-                                                 Z_S: z_sensitivity})                             
-            _, H_loss_curr = sess.run([H_solver, H_loss],
-                                      feed_dict={X: X_mb, 
-                                                 Y: Y_mb, 
-                                                 Y_fake: Y_fake_mb, 
-                                                 Z_noise: enc_noise,
-                                                 Z_zero: enc_zero,
-                                                 Z_S: z_sensitivity}) 
-            summary, _, G_loss_curr, dp_epsilon_curr, _ = sess.run([merged, G_solver, G_loss, dp_epsilon, clip_epsilon],
+            for _ in range(5):
+                if dataset == 'mnist':
+                    X_mb, Y_mb = x_train.train.next_batch(mb_size)
+                    X_mb = np.reshape(X_mb,[-1,28,28,1])
+                    Y_mb = pad_along_axis(Y_mb, NUM_CLASSES+1,axis=1)
+                else:
+                    X_mb = next_batch(mb_size, x_train)
+                    Y_mb = next_batch(mb_size, y_train)
+                    Y_mb = pad_along_axis(Y_mb, NUM_CLASSES+1,axis=1)
+                enc_zero = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32) 
+                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
+                _, D_loss_curr = sess.run([D_solver, D_loss],
+                                          feed_dict={X: X_mb, 
+                                                     Y: Y_mb, 
+                                                     Y_fake: Y_fake_mb, 
+                                                     Z_noise: enc_noise, 
+                                                     Z_zero: enc_zero,
+                                                     Z_S: z_sensitivity})                  
+           # _, H_loss_curr = sess.run([H_solver, H_loss],
+           #                           feed_dict={X: X_mb, 
+           #                                      Y: Y_mb, 
+           #                                      Y_fake: Y_fake_mb, 
+           #                                      Z_noise: enc_noise, 
+           #                                      Z_zero: enc_zero,
+           #                                      Z_S: z_sensitivity})  
+            summary, _, G_loss_curr, dp_epsilon_curr,dp_delta_curr, _,_ = sess.run([merged, G_solver, G_loss, dp_epsilon, dp_delta, clip_epsilon,clip_delta],
                                       feed_dict={X: X_mb, 
                                                  Y: Y_mb, 
                                                  Y_fake: Y_fake_mb, 
@@ -206,25 +216,26 @@ with graph.as_default():
             train_writer.add_summary(summary,current_step)
         
             if it % 100 == 0:
-                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4};  epsilon: {:.4};'.format(it,D_loss_curr, G_loss_curr,dp_epsilon_curr))
+                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; epsilon: {:.4}; delta: {:.4};'.format(it,D_loss_curr, G_loss_curr, dp_epsilon_curr, dp_delta_curr))
 
-            if it % 1000 == 0:    
+            if it % 1000 == 0:   
                 Xt_mb = x_test[:mb_size]
                 Yt_mb = y_test[:mb_size] 
                 Yt_mb = pad_along_axis(Yt_mb, NUM_CLASSES+1,axis=1)
-                G_sample_curr, re_fake_curr = sess.run([G_sample,G_hacked],
+                G_sample_curr, re_fake_curr = sess.run([G_sample,G_zero],
                                          feed_dict={X: X_mb, 
                                                     Y: Yt_mb, 
                                                     Y_fake: Y_fake_mb, 
                                                     Z_noise: enc_noise, 
-                                                    Z_zero: enc_zero,
+                                                    Z_zero: enc_zero, 
                                                     Z_S: z_sensitivity})
+                
                 samples_flat = tf.reshape(G_sample_curr,[-1,width,height,channels]).eval()
                 img_set = np.append(Xt_mb[:256], samples_flat[:256], axis=0)         
                 samples_flat = tf.reshape(re_fake_curr,[-1,width,height,channels]).eval() 
                 img_set = np.append(img_set, samples_flat[:256], axis=0)
                 fig = plot(img_set, width, height, channels)
-                plt.savefig('results/epsilon_DP/dc_out_{}/{}.png'.format(dataset,str(i).zfill(3)), bbox_inches='tight')
+                plt.savefig('results/epsilon_delta_DP/dc_out_{}/{}.png'.format(dataset,str(i).zfill(3)), bbox_inches='tight')
                 plt.close(fig)
                 i += 1
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
