@@ -132,10 +132,31 @@ def discriminator(x,var_D):
     with tf.name_scope("Discriminator"):
         for i in range(len(var_D)-2):
             conv = tf.nn.conv2d(current_input, var_D[i], strides=[1,2,2,1],padding='SAME')
-            conv = tf.contrib.layers.layer_norm(conv)
+            conv = tf.contrib.layers.batch_norm(conv,
+                                                updates_collections=None,
+                                                decay=0.9,
+                                                zero_debias_moving_mean=True,
+                                                is_training=True)
             current_input = tf.nn.leaky_relu(conv)            
         h = tf.layers.flatten(current_input)     
-        d = tf.nn.xw_plus_b(h, var_D[-2], var_D[-1])        
+        d = tf.nn.xw_plus_b(h, var_D[-2], var_D[-1])
+        
+    return d
+
+def classifier(x, y, var_C):
+    current_input = x
+    with tf.name_scope("Discriminator"):
+        for i in range(len(var_C)-2):
+            conv = tf.nn.conv2d(current_input, var_C[i], strides=[1,2,2,1],padding='SAME')
+            conv = tf.contrib.layers.batch_norm(conv,
+                                                updates_collections=None,
+                                                decay=0.9,
+                                                zero_debias_moving_mean=True,
+                                                is_training=True)
+            current_input = tf.nn.leaky_relu(conv)            
+        h = tf.layers.flatten(current_input)     
+        d = tf.nn.xw_plus_b(h, var_C[-2], var_C[-1])
+        loss =  tf.nn.softmax_cross_entropy_with_logits_v2(labels = y, logits = d) 
     return d
 
 def gradient_penalty(G_sample, A_true_flat, mb_size, var_D):
@@ -148,14 +169,4 @@ def gradient_penalty(G_sample, A_true_flat, mb_size, var_D):
     gradient_penalty = tf.reduce_mean(tf.square(slopes - 1.))
     return gradient_penalty
 
-def classifier(x, y, var_C):
-    current_input = x
-    with tf.name_scope("Discriminator"):
-        for i in range(len(var_C)-2):
-            conv = tf.nn.conv2d(current_input, var_C[i], strides=[1,2,2,1],padding='SAME')
-            conv = tf.contrib.layers.layer_norm(conv)
-            current_input = tf.nn.leaky_relu(conv)            
-        h = tf.layers.flatten(current_input)     
-        d = tf.nn.xw_plus_b(h, var_C[-2], var_C[-1])
-        loss =  tf.nn.softmax_cross_entropy_with_logits_v2(labels = y, logits = d) 
-    return d
+

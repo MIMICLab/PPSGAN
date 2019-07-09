@@ -81,7 +81,8 @@ with graph.as_default():
         gp = gradient_penalty(G_sample, X, mb_size, var_D_S)
         D_S_loss = tf.reduce_mean(D_fake_logits) - tf.reduce_mean(D_real_logits) +10.0*gp 
         D_C_loss = tf.reduce_mean(C_real_logits)
-        D_loss = D_S_loss + D_C_loss        
+        D_loss = D_S_loss + D_C_loss  
+        
         G_S_loss = - tf.reduce_mean(D_fake_logits)
         G_C_loss = tf.reduce_mean(C_fake_logits)
         G_loss = G_S_loss + G_C_loss + G_zero_loss
