@@ -45,12 +45,17 @@ with graph.as_default():
         W3 = tf.Variable(he_normal_init([5,5,hidden,hidden*2]))
         W4 = tf.Variable(xavier_init([4*4*hidden*2, 1]))
         b4 = tf.Variable(tf.zeros(shape=[1]))
-        W4_c = tf.Variable(xavier_init([4*4*hidden*2, NUM_CLASSES])) #num_class
-        b4_c = tf.Variable(tf.zeros(shape=[NUM_CLASSES])) #num_class
-
-        var_D_S = [W1,W2,W3,W4,b4] 
-        var_D_C = [W1,W2,W3,W4_c,b4_c]
-        var_D = [W1,W2,W3,W4,b4,W4_c,b4_c] 
+        
+        var_D = [W1,W2,W3,W4,b4] 
+        
+        #classifier variables
+        W1_c = tf.Variable(he_normal_init([5,5,channels, hidden//2]))
+        W2_c = tf.Variable(he_normal_init([5,5, hidden//2,hidden]))
+        W3_c = tf.Variable(he_normal_init([5,5,hidden,hidden*2]))
+        W4_c = tf.Variable(xavier_init([4*4*hidden*2, NUM_CLASSES])) 
+        b4_c = tf.Variable(tf.zeros(shape=[NUM_CLASSES]))
+        
+        var_C = [W1_c,W2_c,W3_c,W4_c,b4_c] 
         
         global_step = tf.Variable(0, name="global_step", trainable=False)        
 
@@ -71,18 +76,16 @@ with graph.as_default():
                                                             var_G,
                                                             reuse=True)
                 
-        D_real_logits = discriminator(X, var_D_S)
-        D_fake_logits = discriminator(G_sample, var_D_S)
-        C_real_logits = classifier(X, Y, var_D_C)
-        C_fake_logits = classifier(G_sample, Y, var_D_C)
-         
-        G_zero_loss = tf.reduce_mean(tf.pow(X - G_zero,2)) 
+        D_real_logits = discriminator(X, var_D)
+        D_fake_logits = discriminator(G_sample, var_D)
+        C_real_logits = classifier(X, Y, var_C)
+        C_fake_logits = classifier(G_sample, Y, var_C)
+             
+        gp = gradient_penalty(G_sample, X, mb_size, var_D)
+        D_loss = tf.reduce_mean(D_fake_logits) - tf.reduce_mean(D_real_logits) +10.0*gp 
+        C_loss = tf.reduce_mean(C_real_logits)
         
-        gp = gradient_penalty(G_sample, X, mb_size, var_D_S)
-        D_S_loss = tf.reduce_mean(D_fake_logits) - tf.reduce_mean(D_real_logits) +10.0*gp 
-        D_C_loss = tf.reduce_mean(C_real_logits)
-        D_loss = D_S_loss + D_C_loss  
-        
+        G_zero_loss = tf.reduce_mean(tf.pow(X - G_zero,2))         
         G_S_loss = - tf.reduce_mean(D_fake_logits)
         G_C_loss = tf.reduce_mean(C_fake_logits)
         G_loss = G_S_loss + G_C_loss + G_zero_loss
@@ -91,12 +94,11 @@ with graph.as_default():
         tf.summary.image('fake',G_sample) 
         tf.summary.image('fake_zero', G_zero)
         
+        tf.summary.scalar('D_loss', D_loss)  
+        tf.summary.scalar('C_loss',C_loss) 
         tf.summary.scalar('G_zero_loss',G_zero_loss)        
-        tf.summary.scalar('D_S_loss',D_S_loss)
-        tf.summary.scalar('D_C_loss',D_C_loss)
         tf.summary.scalar('G_S_loss',G_S_loss)
-        tf.summary.scalar('G_C_loss',G_C_loss)
-        tf.summary.scalar('D_loss', D_loss)      
+        tf.summary.scalar('G_C_loss',G_C_loss)        
         tf.summary.scalar('G_loss',G_loss) 
         
         tf.summary.histogram('z_original',z_original) 
@@ -109,6 +111,7 @@ with graph.as_default():
         
         A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_G, global_step=global_step)       
         D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D, global_step=global_step)
+        C_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(C_loss,var_list=var_C, global_step=global_step)
         G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
 
         timestamp = str(int(time.time()))
@@ -172,12 +175,14 @@ with graph.as_default():
                 
                 enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
                 enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
-                _, D_curr, D_S_curr, D_C_curr = sess.run([D_solver, D_loss, D_S_loss, D_C_loss],
-                                                     feed_dict={X: X_mb, 
-                                                                Y: Y_mb, 
-                                                                Z_noise: enc_noise, 
-                                                                Z_zero: enc_zero})
-                
+                _, D_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb, 
+                                                                   Y: Y_mb, 
+                                                                   Z_noise: enc_noise, 
+                                                                   Z_zero: enc_zero})
+            _, C_curr = sess.run([C_solver,C_loss],feed_dict={X: X_mb, 
+                                                              Y: Y_mb, 
+                                                              Z_noise: enc_noise, 
+                                                              Z_zero: enc_zero})               
             summary, _, G_curr, G_S_curr, G_C_curr, G_z_curr = sess.run([merged, G_solver, G_loss,G_S_loss, G_C_loss, G_zero_loss],
                                       feed_dict={X: X_mb, 
                                                  Y: Y_mb,  
@@ -187,7 +192,7 @@ with graph.as_default():
             train_writer.add_summary(summary,current_step)
         
             if it % 100 == 0:
-                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; D_S: {:.4}; D_C: {:.4}; G_S: {:.4}; G_C: {:.4}; G_zero: {:.4};'.format(it,D_curr, G_curr, D_S_curr, D_C_curr, G_S_curr, G_C_curr, G_z_curr))
+                print('Iter: {}; D_loss: {:.4}; C_loss: {:.4}; G_loss: {:.4}; G_S: {:.4}; G_C: {:.4}; G_zero: {:.4};'.format(it,D_curr, C_curr, G_curr, G_S_curr, G_C_curr, G_z_curr))
 
             if it % 1000 == 0:   
                 Xt_mb = x_test[:mb_size]
