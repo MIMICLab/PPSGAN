@@ -25,27 +25,20 @@ def delta_init(initial, size):
     stddev = 1. / tf.sqrt(in_dim / 2.)
     return tf.add(initial,tf.random_normal(shape=size, stddev=stddev))
 
-def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, var_A, sensitivity,
+def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sensitivity,
               reuse=False,use_delta=USE_DELTA):
     idx=0
     current_input = x    
     encoder = []
-    var_P = []
     shapes_enc = []
     with tf.name_scope("Encoder"):
         for layer_i, n_output in enumerate(n_filters[1:]):
             n_input = current_input.get_shape().as_list()[3]
             shapes_enc.append(current_input.get_shape().as_list())
-            if reuse:
-                W = var_A[idx]
-                var_P.append(W)
-                idx += 1
-            else:
-                W = tf.Variable(xavier_init([filter_sizes[layer_i],
+            W = tf.Variable(xavier_init([filter_sizes[layer_i],
                                             filter_sizes[layer_i],
                                             n_input, n_output]))
-                var_A.append(W)
-                var_P.append(W)
+            var_G.append(W)
             encoder.append(W)
             conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')          
             conv = tf.contrib.layers.batch_norm(conv,
@@ -57,33 +50,48 @@ def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, var_A, sens
             current_input = output
         encoder.reverse()
         shapes_enc.reverse() 
-        z_flat = tf.layers.flatten(current_input)
-        z_dim = int(z_flat.get_shape()[1])
-        z = z_flat  
+        z_flat = tf.layers.flatten(current_input)  
+        z_flat_dim = int(z_flat.get_shape()[1])
+        W_fc1 = tf.Variable(xavier_init([z_flat_dim, z_dim]))
+        var_G.append(W_fc1)
+        z = tf.matmul(z_flat,W_fc1)  
+        z_original = z
+        
+    with tf.name_scope("Noise_Applier"): 
+        #self-attention on z 
+        W_q = tf.Variable(xavier_init([z_dim, z_dim]))
+        W_k = tf.Variable(xavier_init([z_dim, z_dim]))
+        W_v = tf.Variable(xavier_init([z_dim, z_dim]))
+        var_G.append(W_q)
+        var_G.append(W_k)
+        var_G.append(W_v)          
+            
+        query = tf.matmul(z,W_q)
+        key = tf.matmul(z,W_k)
+        value = tf.matmul(z,W_v)
 
-    #epsilon-delta-DP        
-    if use_delta:
-        with tf.name_scope("Noise_Applier"):       
-            z_original = z
-            if reuse == True:
-                W_epsilon = var_A[idx]
-                epsilon_var = W_epsilon
-                idx += 1
-            else:
-                W_epsilon = tf.Variable(epsilon_init(INIT_EPSILON, [z_dim]))
-                epsilon_var = W_epsilon
-                var_G.append(W_epsilon)
-                var_A.append(W_epsilon)
+        attention_score = tf.matmul(query, key, transpose_b=True)
+        #scale score by sqrt of dim size
+        attention_score = attention_score / tf.sqrt(tf.cast(z_dim, tf.float32))
+        
+        #convert attention_score into probability form with softmax
+        attention = tf.nn.softmax(attention_score, axis=2)
+        #negetive attention for noise scaling
+        neg_attention = 1.0 - attention
+        
+        #attention applied z
+        z = tf.matmul(attention, value)        
+       
+        #epsilon-delta-DP        
+        if use_delta:      
+            W_epsilon = tf.Variable(epsilon_init(INIT_EPSILON, [z_dim]))
+            epsilon_var = W_epsilon
+            var_G.append(W_epsilon)
             W_epsilon = tf.maximum(tf.abs(W_epsilon),1e-8)
-            if reuse == True:
-                W_delta = var_A[idx]
-                delta_var = W_delta
-                idx += 1
-            else:
-                W_delta = tf.Variable(delta_init(INIT_DELTA, [z_dim]))
-                delta_var = W_delta
-                var_G.append(W_delta)
-                var_A.append(W_delta)
+            W_delta = tf.Variable(delta_init(INIT_DELTA, [z_dim]))
+            delta_var = W_delta
+            var_G.append(W_delta)
+
             W_delta = tf.maximum(W_delta,1e-8)
             W_delta = tf.minimum(W_delta, 1.0)
             dp_delta = tf.log(tf.divide(1.25,W_delta))
@@ -91,62 +99,86 @@ def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, var_A, sens
             dp_delta = tf.sqrt(tf.multiply(2.0,dp_delta))      
             dp_lambda = tf.multiply(dp_delta,tf.divide(sensitivity,W_epsilon))
             W_noise = tf.multiply(noise,dp_lambda)
+            
+            #rescale noise with neg_attention probability
+            W_noise = tf.matmul(neg_attention, W_noise)
+            
             z = tf.add(z,W_noise)
             z_noise = W_noise
             z_noise_applied = z
         
-    #epsilon-DP              
-    else:
-        with tf.name_scope("Noise_Applier"):      
-            z_original = z
-            if reuse == True:
-                W_epsilon = var_A[idx]
-                epsilon_var = W_epsilon
-                idx += 1
-            else:
-                W_epsilon = tf.Variable(epsilon_init(INIT_EPSILON, [z_dim]))
-                epsilon_var = W_epsilon
-                var_G.append(W_epsilon)
-                var_A.append(W_epsilon)
+        #epsilon-DP              
+        else:    
+            W_epsilon = tf.Variable(epsilon_init(INIT_EPSILON, [z_dim]))
+            epsilon_var = W_epsilon
+            var_G.append(W_epsilon)
+
             W_epsilon = tf.maximum(W_epsilon,1e-8)
             dp_lambda = tf.divide(sensitivity,W_epsilon)
             W_noise = tf.multiply(noise,dp_lambda)
+            
+            #rescale noise with neg_attention probability
+            W_noise = tf.matmul(neg_attention, W_noise) 
+            
             z = tf.add(z,W_noise)
             z_noise = W_noise
             z_noise_applied = z
             
-    with tf.name_scope("Decoder"):  
-        current_input = tf.reshape(z, [-1, 4, 4, n_filters[-1]])           
+    with tf.name_scope("Decoder"): 
+        
+        W_fc2 = tf.Variable(xavier_init([z_dim, z_flat_dim]))
+        var_G.append(W_fc2)
+        
+        #noised Z
+        z_ = tf.matmul(z,W_fc2) 
+        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_ = tf.nn.relu(z_)
+        
+        #original Z using residual connection
+        z_original_ = tf.matmul(z_original,W_fc2)
+        z_original_ = tf.contrib.layers.batch_norm(z_original_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_original_ = tf.nn.relu(z_original_)
+        
+        current_input = tf.reshape(z_, [-1, 4, 4, n_filters[-1]])
+        curr_original = tf.reshape(z_original_, [-1, 4, 4, n_filters[-1]])
+        
         for layer_i, shape in enumerate(shapes_enc):
             W_enc = encoder[layer_i]
-            if reuse == True:
-                W = var_A[idx]
-                var_P.append(W)
-                idx += 1
-            else:
-                W = tf.Variable(he_normal_init(W_enc.get_shape().as_list()))
-                var_G.append(W)
-                var_A.append(W)
-                var_P.append(W)
+            W = tf.Variable(he_normal_init(W_enc.get_shape().as_list()))
+            var_G.append(W)
             deconv = tf.nn.conv2d_transpose(current_input, 
                                             W,
                                             tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                             strides=[1, 2, 2, 1], 
                                             padding='SAME') 
-            
+            deconv_original = tf.nn.conv2d_transpose(curr_original, 
+                                            W,
+                                            tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+                                            strides=[1, 2, 2, 1], 
+                                            padding='SAME')             
             if layer_i == len(n_filters)-2:
                 output = tf.nn.sigmoid(deconv)
+                output_original = tf.nn.sigmoid(deconv_original)
             else:
                 deconv = tf.contrib.layers.batch_norm(deconv,
                                                       updates_collections=None,
                                                       decay=0.9,
                                                       zero_debias_moving_mean=True,
-                                                      is_training=True)           
+                                                      is_training=True)    
+                deconv_original = tf.contrib.layers.batch_norm(deconv_original,
+                                                      updates_collections=None,
+                                                      decay=0.9,
+                                                      zero_debias_moving_mean=True,
+                                                      is_training=True) 
                 output = tf.nn.leaky_relu(deconv)
+                output_original = tf.nn.leaky_relu(deconv_original)
             current_input = output
+            curr_original = output_original
         g = current_input
-  
-    return g, z_original, z_noise, z_noise_applied, var_P
+        g_original  = curr_original
+        
+        
+    return g, g_original, z_original, z_noise, z_noise_applied
 
 def discriminator(x,var_D):
     current_input = x

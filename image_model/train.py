@@ -11,7 +11,8 @@ from model import xavier_init, he_normal_init
 
 dataset = sys.argv[1]
 model_name = sys.argv[2]
-prev_iter = int(sys.argv[3])
+z_dim = int(sys.argv[3])
+prev_iter = int(sys.argv[4])
 NUM_CLASSES = 10
 mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
 
@@ -25,20 +26,17 @@ with graph.as_default():
         #input placeholder
         input_shape=[None, width, height, channels]
         filter_sizes=[5, 5, 5, 5, 5]        
-        hidden = 128
-        z_dim = 8192            
+        hidden = 128         
  
         n_filters=[channels, hidden, hidden*2, hidden*4]
             
         X = tf.placeholder(tf.float32, shape=[None, width, height,channels])  
         Z_S = tf.placeholder(tf.float32, shape=[None, z_dim]) 
         Z_noise = tf.placeholder(tf.float32, shape=[None,  z_dim])
-        Z_zero = tf.placeholder(tf.float32, shape=[None,  z_dim])
         Y = tf.placeholder(tf.float32, shape=[None,  NUM_CLASSES])
         A_true_flat = X        
         #generator variables
         var_G = []
-        var_A = []
         #discriminator variables
         W1 = tf.Variable(he_normal_init([5,5,channels, hidden//2]))
         W2 = tf.Variable(he_normal_init([5,5, hidden//2,hidden]))
@@ -55,28 +53,15 @@ with graph.as_default():
         var_D_C = [W1,W2,W3,W4,b4,W4_c,b4_c]
         
         global_step = tf.Variable(0, name="global_step", trainable=False)        
-
-        
-        
-        G_sample, z_original, z_noise, z_noised, var_P = generator(input_shape, 
+       
+        G_sample, G_zero, z_original, z_noise, z_noised = generator(input_shape, 
                                                                    n_filters, 
                                                                    filter_sizes, 
                                                                    X, 
                                                                    Z_noise, 
                                                                    var_G,
-                                                                   var_A,
-                                                                   Z_S)
-        
-        G_zero, z_original, z_noise, z_noised, var_P = generator(input_shape, 
-                                                                 n_filters, 
-                                                                 filter_sizes, 
-                                                                 X, 
-                                                                 Z_zero, 
-                                                                 var_G,
-                                                                 var_A,
-                                                                 Z_S,
-                                                                 reuse=True)
-                
+                                                                   z_dim,
+                                                                   Z_S)               
         D_real_logits = discriminator(X, var_D)
         D_fake_logits = discriminator(G_sample, var_D)
         C_real_logits = classifier(X, var_C)
@@ -115,7 +100,7 @@ with graph.as_default():
 
         num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
         
-        A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_P, global_step=global_step)       
+        A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_G, global_step=global_step)       
         D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
         G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
 
@@ -158,7 +143,6 @@ with graph.as_default():
                                                         feed_dict={X: X_mb, 
                                                                    Y: Y_mb, 
                                                                    Z_noise: enc_noise, 
-                                                                   Z_zero: enc_zero,
                                                                    Z_S: enc_zero}) 
                 
                 current_step = tf.train.global_step(sess, global_step)
@@ -183,7 +167,6 @@ with graph.as_default():
                                                                    X: X_mb, 
                                                                    Y: Y_mb, 
                                                                    Z_noise: enc_noise, 
-                                                                   Z_zero: enc_zero,
                                                                    Z_S: enc_zero}) 
             if idx == 0:
                 z_max = max_curr
@@ -212,7 +195,6 @@ with graph.as_default():
                                                          feed_dict={X: X_mb, 
                                                                    Y: Y_mb, 
                                                                    Z_noise: enc_noise, 
-                                                                   Z_zero: enc_zero,
                                                                    Z_S: z_sensitivity})              
             summary, _, G_curr, G_S_curr, G_C_curr, G_z_curr = sess.run([merged, G_solver,
                                                                          G_loss,G_S_loss, G_C_loss,
@@ -220,7 +202,6 @@ with graph.as_default():
                                                         feed_dict={X: X_mb, 
                                                                    Y: Y_mb,  
                                                                    Z_noise: enc_noise,
-                                                                   Z_zero: enc_zero,
                                                                    Z_S: z_sensitivity}) 
             current_step = tf.train.global_step(sess, global_step)
             train_writer.add_summary(summary,current_step)
@@ -237,7 +218,6 @@ with graph.as_default():
                                                        feed_dict={X: Xt_mb, 
                                                                   Y: Yt_mb, 
                                                                   Z_noise: enc_noise, 
-                                                                  Z_zero: enc_zero,
                                                                   Z_S: z_sensitivity}) 
                 
                 samples_flat = tf.reshape(G_sample_curr,[-1,width,height,channels]).eval()
