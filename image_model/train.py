@@ -12,8 +12,6 @@ from model import xavier_init, he_normal_init
 dataset = sys.argv[1]
 model_name = sys.argv[2]
 prev_iter = int(sys.argv[3])
-init_epsilon = 1.0
-init_delta = 1e-5
 NUM_CLASSES = 10
 mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
 
@@ -28,17 +26,19 @@ with graph.as_default():
         input_shape=[None, width, height, channels]
         filter_sizes=[5, 5, 5, 5, 5]        
         hidden = 128
-        z_dim = 128            
+        z_dim = 8192            
  
         n_filters=[channels, hidden, hidden*2, hidden*4]
             
-        X = tf.placeholder(tf.float32, shape=[None, width, height,channels])      
+        X = tf.placeholder(tf.float32, shape=[None, width, height,channels])  
+        Z_S = tf.placeholder(tf.float32, shape=[None, z_dim]) 
         Z_noise = tf.placeholder(tf.float32, shape=[None,  z_dim])
         Z_zero = tf.placeholder(tf.float32, shape=[None,  z_dim])
         Y = tf.placeholder(tf.float32, shape=[None,  NUM_CLASSES])
-        
+        A_true_flat = X        
         #generator variables
         var_G = []
+        var_A = []
         #discriminator variables
         W1 = tf.Variable(he_normal_init([5,5,channels, hidden//2]))
         W2 = tf.Variable(he_normal_init([5,5, hidden//2,hidden]))
@@ -56,22 +56,26 @@ with graph.as_default():
         
         global_step = tf.Variable(0, name="global_step", trainable=False)        
 
-        G_zero, z_original, z_noise, z_noised = generator(input_shape, 
-                                                          n_filters, 
-                                                          filter_sizes, 
-                                                          z_dim, 
-                                                          X, 
-                                                          Z_zero, 
-                                                          var_G)
         
-        G_sample, z_original, z_noise, z_noised = generator(input_shape, 
-                                                            n_filters, 
-                                                            filter_sizes, 
-                                                            z_dim, 
-                                                            X, 
-                                                            Z_noise, 
-                                                            var_G,
-                                                            reuse=True)
+        
+        G_sample, z_original, z_noise, z_noised, var_P = generator(input_shape, 
+                                                                   n_filters, 
+                                                                   filter_sizes, 
+                                                                   X, 
+                                                                   Z_noise, 
+                                                                   var_G,
+                                                                   var_A,
+                                                                   Z_S)
+        
+        G_zero, z_original, z_noise, z_noised, var_P = generator(input_shape, 
+                                                                 n_filters, 
+                                                                 filter_sizes, 
+                                                                 X, 
+                                                                 Z_zero, 
+                                                                 var_G,
+                                                                 var_A,
+                                                                 Z_S,
+                                                                 reuse=True)
                 
         D_real_logits = discriminator(X, var_D)
         D_fake_logits = discriminator(G_sample, var_D)
@@ -87,6 +91,9 @@ with graph.as_default():
         G_S_loss = - tf.reduce_mean(D_fake_logits)
         G_C_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, logits = C_fake_logits))
         G_loss = G_S_loss + G_C_loss + G_zero_loss
+        
+        latent_max = tf.reduce_max(z_original, axis = 0)
+        latent_min = tf.reduce_min(z_original, axis = 0)          
         
         tf.summary.image('Original',X)
         tf.summary.image('fake',G_sample) 
@@ -108,7 +115,7 @@ with graph.as_default():
 
         num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
         
-        A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_G, global_step=global_step)       
+        A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_P, global_step=global_step)       
         D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
         G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
 
@@ -148,10 +155,11 @@ with graph.as_default():
                 enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
                 
                 summary,_, A_loss_curr= sess.run([merged, A_solver, G_zero_loss],
-                                                 feed_dict={X: X_mb, 
-                                                            Y: Y_mb, 
-                                                            Z_noise: enc_noise, 
-                                                            Z_zero: enc_zero})
+                                                        feed_dict={X: X_mb, 
+                                                                   Y: Y_mb, 
+                                                                   Z_noise: enc_noise, 
+                                                                   Z_zero: enc_zero,
+                                                                   Z_S: enc_zero}) 
                 
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
@@ -161,6 +169,33 @@ with graph.as_default():
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                     print('Saved model at {} at step {}'.format(path, current_step)) 
                     
+        #calculate approximated global sensitivity            
+        for idx in range(num_batches_per_epoch):
+            if dataset == 'mnist':
+                X_mb, _ = x_train.train.next_batch(mb_size)
+                X_mb = np.reshape(X_mb,[-1,28,28,1])
+            elif dataset == 'lsun':
+                X_mb = x_train.next_batch(mb_size)                    
+            else:
+                X_mb = next_batch(mb_size, x_train) 
+            enc_noise = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32)                  
+            max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
+                                                                   X: X_mb, 
+                                                                   Y: Y_mb, 
+                                                                   Z_noise: enc_noise, 
+                                                                   Z_zero: enc_zero,
+                                                                   Z_S: enc_zero}) 
+            if idx == 0:
+                z_max = max_curr
+                z_min = min_curr
+            else:
+                z_max = np.maximum(z_max,max_curr)
+                z_min = np.minimum(z_min,min_curr)
+        z_sensitivity = np.abs(np.subtract(z_max,z_min))
+        print("Approximated Global Sensitivity:") 
+        print(z_sensitivity)        
+        z_sensitivity = np.tile(z_sensitivity,(mb_size,1)) 
+        
         #Adversarial training           
         for it in range(num_batches_per_epoch*1000):
             for _ in range(5):
@@ -177,12 +212,16 @@ with graph.as_default():
                                                          feed_dict={X: X_mb, 
                                                                    Y: Y_mb, 
                                                                    Z_noise: enc_noise, 
-                                                                   Z_zero: enc_zero})              
-            summary, _, G_curr, G_S_curr, G_C_curr, G_z_curr = sess.run([merged, G_solver, G_loss,G_S_loss, G_C_loss, G_zero_loss],
-                                      feed_dict={X: X_mb, 
-                                                 Y: Y_mb,  
-                                                 Z_noise: enc_noise,
-                                                 Z_zero: enc_zero})
+                                                                   Z_zero: enc_zero,
+                                                                   Z_S: z_sensitivity})              
+            summary, _, G_curr, G_S_curr, G_C_curr, G_z_curr = sess.run([merged, G_solver,
+                                                                         G_loss,G_S_loss, G_C_loss,
+                                                                         G_zero_loss],
+                                                        feed_dict={X: X_mb, 
+                                                                   Y: Y_mb,  
+                                                                   Z_noise: enc_noise,
+                                                                   Z_zero: enc_zero,
+                                                                   Z_S: z_sensitivity}) 
             current_step = tf.train.global_step(sess, global_step)
             train_writer.add_summary(summary,current_step)
         
@@ -198,7 +237,8 @@ with graph.as_default():
                                                        feed_dict={X: Xt_mb, 
                                                                   Y: Yt_mb, 
                                                                   Z_noise: enc_noise, 
-                                                                  Z_zero: enc_zero})
+                                                                  Z_zero: enc_zero,
+                                                                  Z_S: z_sensitivity}) 
                 
                 samples_flat = tf.reshape(G_sample_curr,[-1,width,height,channels]).eval()
                 img_set = np.append(Xt_mb[:256], samples_flat[:256], axis=0)         
