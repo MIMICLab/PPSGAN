@@ -11,9 +11,11 @@ from model import xavier_init, he_normal_init
 
 dataset = sys.argv[1]
 model_name = sys.argv[2]
-z_dim = int(sys.argv[3])
-prev_iter = int(sys.argv[4])
+prev_iter = int(sys.argv[3])
+
 NUM_CLASSES = 10
+z_dim = 128
+USE_WGAN_GP = False
 mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
 
     
@@ -62,21 +64,52 @@ with graph.as_default():
                                                                    var_G,
                                                                    z_dim,
                                                                    Z_S)               
-        D_real_logits = discriminator(X, var_D)
-        D_fake_logits = discriminator(G_sample, var_D)
-        C_real_logits = classifier(X, var_C)
-        C_fake_logits = classifier(G_sample, var_C)
+        if USE_WGAN_GP:
+            D_real_logits = discriminator_gp(X, var_D)
+            D_fake_logits = discriminator_gp(G_sample, var_D)
+            C_real_logits = classifier_gp(X, var_C)
+            C_fake_logits = classifier_gp(G_sample, var_C)
              
-        gp = gradient_penalty(G_sample, X, mb_size, var_D)
-        D_S_loss = tf.reduce_mean(D_fake_logits) - tf.reduce_mean(D_real_logits) + 10.0*gp 
-        D_C_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, logits = C_real_logits))
-        D_loss = D_S_loss + D_C_loss
+            gp = gradient_penalty(G_sample, X, mb_size, var_D)
+            D_S_loss = tf.reduce_mean(D_fake_logits) - tf.reduce_mean(D_real_logits) + 10.0*gp 
+            D_C_loss = tf.reduce_mean(
+                       tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
+                                                                  logits = C_real_logits))
+            D_loss = D_S_loss + D_C_loss
         
-        G_zero_loss = tf.reduce_mean(tf.pow(X - G_zero,2))         
-        G_S_loss = - tf.reduce_mean(D_fake_logits)
-        G_C_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, logits = C_fake_logits))
-        G_loss = G_S_loss + G_C_loss + G_zero_loss
+            G_zero_loss = tf.reduce_mean(tf.pow(X - G_zero,2))         
+            G_S_loss = - tf.reduce_mean(D_fake_logits)
+            G_C_loss = tf.reduce_mean(
+                       tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
+                                                                  logits = C_fake_logits))
+            G_loss = G_S_loss + G_C_loss + G_zero_loss
+            
+        else:
+            D_real, D_real_logits = discriminator(X, var_D)
+            D_fake, D_fake_logits = discriminator(G_sample, var_D)
+            C_real_logits = classifier(X, var_C)
+            C_fake_logits = classifier(G_sample, var_C)
+            
+            D_real_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+                            logits=D_real_logits, labels=tf.ones_like(D_real))
+            D_fake_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+                               logits=D_fake_logits, labels=tf.zeros_like(D_fake))
+            
+            D_S_loss = tf.reduce_mean(D_real_loss) + tf.reduce_mean(D_fake_loss)
+            D_C_loss = tf.reduce_mean(
+                       tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
+                                                                  logits = C_real_logits))
+            
+            D_loss = D_S_loss + D_C_loss
         
+            G_zero_loss = tf.reduce_mean(tf.pow(X - G_zero,2))         
+            G_S_loss = tf.reduce_mean(
+                       tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, 
+                                                               labels=tf.ones_like(D_fake)))
+            G_C_loss = tf.reduce_mean(
+                       tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
+                                                                  logits = C_fake_logits))
+            G_loss = G_S_loss + G_C_loss + G_zero_loss       
         latent_max = tf.reduce_max(z_original, axis = 0)
         latent_min = tf.reduce_min(z_original, axis = 0)          
         
@@ -100,9 +133,9 @@ with graph.as_default():
 
         num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
         
-        A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_G, global_step=global_step)       
-        D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
-        G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
+        A_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_G, global_step=global_step)       
+        D_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
+        G_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
 
         timestamp = str(int(time.time()))
         if not os.path.exists('results/'):
@@ -181,7 +214,7 @@ with graph.as_default():
         
         #Adversarial training           
         for it in range(num_batches_per_epoch*1000):
-            for _ in range(5):
+            for _ in range(1):
                 if dataset == 'mnist':
                     X_mb, Y_mb = x_train.train.next_batch(mb_size)
                     X_mb = np.reshape(X_mb,[-1,28,28,1])
@@ -230,3 +263,29 @@ with graph.as_default():
                 i += 1
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                 print('Saved model at {} at step {}'.format(path, current_step))
+                
+                #calculate approximated global sensitivity            
+                for idx in range(num_batches_per_epoch):
+                    if dataset == 'mnist':
+                        X_mb, _ = x_train.train.next_batch(mb_size)
+                        X_mb = np.reshape(X_mb,[-1,28,28,1])
+                    elif dataset == 'lsun':
+                        X_mb = x_train.next_batch(mb_size)                    
+                    else:
+                        X_mb = next_batch(mb_size, x_train) 
+                    enc_noise = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32)                  
+                    max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
+                                                                   X: X_mb, 
+                                                                   Y: Y_mb, 
+                                                                   Z_noise: enc_noise, 
+                                                                   Z_S: enc_zero}) 
+                    if idx == 0:
+                        z_max = max_curr
+                        z_min = min_curr
+                    else:
+                        z_max = np.maximum(z_max,max_curr)
+                        z_min = np.minimum(z_min,min_curr)
+                z_sensitivity = np.abs(np.subtract(z_max,z_min))
+                print("Approximated Global Sensitivity:") 
+                print(z_sensitivity)        
+                z_sensitivity = np.tile(z_sensitivity,(mb_size,1)) 

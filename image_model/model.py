@@ -185,6 +185,37 @@ def discriminator(x,var_D):
     with tf.name_scope("Discriminator"):
         for i in range(len(var_D)-2):
             conv = tf.nn.conv2d(current_input, var_D[i], strides=[1,2,2,1],padding='SAME')
+            conv = tf.contrib.layers.batch_norm(conv,
+                                                updates_collections=None,
+                                                decay=0.9,
+                                                zero_debias_moving_mean=True,
+                                                is_training=True)
+            current_input = tf.nn.leaky_relu(conv)            
+        h = tf.layers.flatten(current_input)     
+        d = tf.nn.xw_plus_b(h, var_D[-2], var_D[-1])
+        out = tf.nn.sigmoid(d)
+    return out, d
+
+def classifier(x, var_C):
+    current_input = x
+    with tf.name_scope("Discriminator"):
+        for i in range(len(var_C)-2):
+            conv = tf.nn.conv2d(current_input, var_C[i], strides=[1,2,2,1],padding='SAME')
+            conv = tf.contrib.layers.batch_norm(conv,
+                                                updates_collections=None,
+                                                decay=0.9,
+                                                zero_debias_moving_mean=True,
+                                                is_training=True)
+            current_input = tf.nn.leaky_relu(conv)            
+        h = tf.layers.flatten(current_input)     
+        d = tf.nn.xw_plus_b(h, var_C[-2], var_C[-1])
+    return d
+
+def discriminator_gp(x,var_D):
+    current_input = x
+    with tf.name_scope("Discriminator"):
+        for i in range(len(var_D)-2):
+            conv = tf.nn.conv2d(current_input, var_D[i], strides=[1,2,2,1],padding='SAME')
             conv = tf.contrib.layers.layer_norm(conv)
             current_input = tf.nn.leaky_relu(conv)            
         h = tf.layers.flatten(current_input)     
@@ -192,7 +223,7 @@ def discriminator(x,var_D):
         
     return d
 
-def classifier(x, var_C):
+def classifier_gp(x, var_C):
     current_input = x
     with tf.name_scope("Discriminator"):
         for i in range(len(var_C)-2):
@@ -203,6 +234,28 @@ def classifier(x, var_C):
         d = tf.nn.xw_plus_b(h, var_C[-2], var_C[-1])
     return d
 
+def discriminator_gp(x,var_D):
+    current_input = x
+    with tf.name_scope("Discriminator"):
+        for i in range(len(var_D)-2):
+            conv = tf.nn.conv2d(current_input, var_D[i], strides=[1,2,2,1],padding='SAME')
+            conv = tf.contrib.layers.layer_norm(conv)
+            current_input = tf.nn.leaky_relu(conv)            
+        h = tf.layers.flatten(current_input)     
+        d = tf.nn.xw_plus_b(h, var_D[-2], var_D[-1])
+        
+    return d
+
+def classifier_gp(x, var_C):
+    current_input = x
+    with tf.name_scope("Discriminator"):
+        for i in range(len(var_C)-2):
+            conv = tf.nn.conv2d(current_input, var_C[i], strides=[1,2,2,1],padding='SAME')
+            conv = tf.contrib.layers.layer_norm(conv)
+            current_input = tf.nn.leaky_relu(conv)            
+        h = tf.layers.flatten(current_input)     
+        d = tf.nn.xw_plus_b(h, var_C[-2], var_C[-1])
+    return d
 def gradient_penalty(G_sample, A_true_flat, mb_size, var_D):
     epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
     X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
