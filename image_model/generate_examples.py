@@ -9,9 +9,10 @@ import time
 from utils.data_helper import data_loader
 from model import xavier_init, he_normal_init
 
+
 dataset = sys.argv[1]
 model_name = sys.argv[2]
-prev_iter = int(sys.argv[3])
+
 
 NUM_CLASSES = 10
 z_dim = 128
@@ -148,53 +149,26 @@ with graph.as_default():
             os.makedirs('results/models/')
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
-        if not os.path.exists('results/dc_out_{}_{}/'.format(dataset,model_name)):
-            os.makedirs('results/dc_out_{}_{}/'.format(dataset,model_name))           
+        if not os.path.exists("results/examples/{}_{}".format(dataset, model_name)):
+            os.makedirs("results/examples/{}_{}".format(dataset, model_name))           
 
-        train_writer = tf.summary.FileWriter('results/graphs/{}_{}'.format(dataset,model_name),sess.graph)
+        train_writer = tf.summary.FileWriter('results/graphs/{}'.format(dataset),sess.graph)
         saver = tf.train.Saver(tf.global_variables())
         sess.run(tf.global_variables_initializer())
         
-        if prev_iter != 0:
-            saver.restore(sess,tf.train.latest_checkpoint(checkpoint_dir))        
-        i = prev_iter 
-        
-        #Autoencoder pre-train
-        if prev_iter == 0:
-            for idx in range(num_batches_per_epoch*100):
-                if dataset == 'mnist':
-                    X_mb, Y_mb = x_train.train.next_batch(mb_size)
-                    X_mb = np.reshape(X_mb,[-1,28,28,1])  
-                else:
-                    X_mb = next_batch(mb_size, x_train)
-                    Y_mb = next_batch(mb_size, y_train)
-                    
-                enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)   
-                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
-                
-                summary,_, A_loss_curr= sess.run([merged, A_solver, G_zero_loss],
-                                                        feed_dict={X: X_mb, 
-                                                                   Y: Y_mb, 
-                                                                   Z_noise: enc_noise, 
-                                                                   Z_S: enc_zero}) 
-                
-                current_step = tf.train.global_step(sess, global_step)
-                train_writer.add_summary(summary,current_step)
-                if idx % 100 == 0:
-                    print('Iter: {}; G_zero_loss: {:.4};'.format(idx,A_loss_curr))
-                if idx % 1000 == 0: 
-                    path = saver.save(sess, checkpoint_prefix, global_step=current_step)
-                    print('Saved model at {} at step {}'.format(path, current_step)) 
+        saver.restore(sess,tf.train.latest_checkpoint(checkpoint_dir))        
                     
         #calculate approximated global sensitivity            
         for idx in range(num_batches_per_epoch):
             if dataset == 'mnist':
                 X_mb, _ = x_train.train.next_batch(mb_size)
-                X_mb = np.reshape(X_mb,[-1,28,28,1])                   
+                X_mb = np.reshape(X_mb,[-1,28,28,1])
+            elif dataset == 'lsun':
+                X_mb = x_train.next_batch(mb_size)                    
             else:
                 X_mb = next_batch(mb_size, x_train)
                 Y_mb = next_batch(mb_size, y_train)
-            enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
+            enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)     
             enc_noise = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32)                  
             max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
                                                                    X: X_mb, 
@@ -210,82 +184,22 @@ with graph.as_default():
         z_sensitivity = np.abs(np.subtract(z_max,z_min))
         print("Approximated Global Sensitivity:") 
         print(z_sensitivity)        
-        z_sensitivity = np.tile(z_sensitivity,(mb_size,1)) 
+        z_sensitivity = np.tile(z_sensitivity,(mb_size,1))
         
-        #Adversarial training           
-        for it in range(num_batches_per_epoch*1000):
-            for _ in range(1):
-                if dataset == 'mnist':
-                    X_mb, Y_mb = x_train.train.next_batch(mb_size)
-                    X_mb = np.reshape(X_mb,[-1,28,28,1])
-                else:
-                    X_mb = next_batch(mb_size, x_train)
-                    Y_mb = next_batch(mb_size, y_train)
+        for i in range(1,len(y_test)//mb_size):
+            Xt_mb = x_test[i-1:mb_size*(i)]
+            Yt_mb = y_test[i-1:mb_size*(i)] 
+            enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)  
+            enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)
+            G_sample_curr = sess.run(G_sample,
+                                                   feed_dict={X: Xt_mb, 
+                                                   Y: Yt_mb, 
+                                                   Z_noise: enc_noise, 
+                                                   Z_S: z_sensitivity})                
+            samples_flat = tf.reshape(G_sample_curr,[mb_size,width,height,channels]).eval()
                 
-                enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
-                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
-                _, D_curr, D_S_curr, D_C_curr = sess.run([D_solver, D_loss, D_S_loss, D_C_loss],
-                                                         feed_dict={X: X_mb, 
-                                                                   Y: Y_mb, 
-                                                                   Z_noise: enc_noise, 
-                                                                   Z_S: z_sensitivity})              
-            summary, _, G_curr, G_S_curr, G_C_curr, G_z_curr = sess.run([merged, G_solver,
-                                                                         G_loss,G_S_loss, G_C_loss,
-                                                                         G_zero_loss],
-                                                        feed_dict={X: X_mb, 
-                                                                   Y: Y_mb,  
-                                                                   Z_noise: enc_noise,
-                                                                   Z_S: z_sensitivity}) 
-            current_step = tf.train.global_step(sess, global_step)
-            train_writer.add_summary(summary,current_step)
-        
-            if it % 100 == 0:
-                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; D_S: {:.4}; G_S: {:.4}; D_C: {:.4}; G_C: {:.4}; G_zero: {:.4};'.format(it,D_curr, G_curr, D_S_curr, G_S_curr, D_C_curr, G_C_curr, G_z_curr))
-
-            if it % 1000 == 0:   
-                Xt_mb = x_test[:mb_size]
-                Yt_mb = y_test[:mb_size] 
-                enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)  
-                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)
-                G_sample_curr, re_fake_curr = sess.run([G_sample, G_zero],
-                                                       feed_dict={X: Xt_mb, 
-                                                                  Y: Yt_mb, 
-                                                                  Z_noise: enc_noise, 
-                                                                  Z_S: z_sensitivity}) 
-                
-                samples_flat = tf.reshape(G_sample_curr,[-1,width,height,channels]).eval()
-                img_set = np.append(Xt_mb[:mb_size], samples_flat[:mb_size], axis=0)         
-                samples_flat = tf.reshape(re_fake_curr,[-1,width,height,channels]).eval() 
-                img_set = np.append(img_set, samples_flat[:mb_size], axis=0)
-                fig = plot(img_set, width, height, channels)
-                plt.savefig('results/dc_out_{}_{}/{}.png'.format(dataset,model_name,str(i).zfill(3)), bbox_inches='tight')
+            for j in range(mb_size):
+                fig = plot_one(samples_flat[j], width, height, channels)
+                plt.savefig('results/examples/{}_{}/{}_{}.png'.format(
+                        dataset,model_name,str(i).zfill(3),str(j).zfill(3)), bbox_inches='tight')
                 plt.close(fig)
-                i += 1
-                path = saver.save(sess, checkpoint_prefix, global_step=current_step)
-                print('Saved model at {} at step {}'.format(path, current_step))
-                
-                #calculate approximated global sensitivity            
-                for idx in range(num_batches_per_epoch):
-                    if dataset == 'mnist':
-                        X_mb, _ = x_train.train.next_batch(mb_size)
-                        X_mb = np.reshape(X_mb,[-1,28,28,1])
-                    elif dataset == 'lsun':
-                        X_mb = x_train.next_batch(mb_size)                    
-                    else:
-                        X_mb = next_batch(mb_size, x_train) 
-                    enc_noise = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32)                  
-                    max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
-                                                                   X: X_mb, 
-                                                                   Y: Y_mb, 
-                                                                   Z_noise: enc_noise, 
-                                                                   Z_S: enc_zero}) 
-                    if idx == 0:
-                        z_max = max_curr
-                        z_min = min_curr
-                    else:
-                        z_max = np.maximum(z_max,max_curr)
-                        z_min = np.minimum(z_min,min_curr)
-                z_sensitivity = np.abs(np.subtract(z_max,z_min))
-                print("Approximated Global Sensitivity:") 
-                print(z_sensitivity)        
-                z_sensitivity = np.tile(z_sensitivity,(mb_size,1)) 

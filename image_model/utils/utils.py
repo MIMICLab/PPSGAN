@@ -47,6 +47,17 @@ def plot(samples, width, height, channels):
             plt.imshow(norm(sample.reshape(width, height,channels)))           
     return fig
 
+def plot_one(sample, width, height, channels):
+    fig=plt.figure(figsize=(width, height))
+    plt.axis('off')
+    plt.grid(b=None)
+    norm=plt.Normalize(-1, 1)
+    if channels == 1:
+        plt.imshow(norm(sample.reshape(width, height)), cmap='Greys_r')
+    else:
+        plt.imshow(norm(sample.reshape(width, height,channels)))           
+    return fig
+
 def normalize(x):
     """
         argument

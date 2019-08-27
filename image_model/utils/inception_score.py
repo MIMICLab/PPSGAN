@@ -72,7 +72,7 @@ def get_inception_score(images, splits=10):
 
     start_time=time.time()
     preds=get_inception_probs(images)
-    print ('Inception Score for %i samples in %i splits'% (preds.shape[0],splits))
+    print('Inception Score for %i samples in %i splits'% (preds.shape[0],splits))
     mean,std = preds2score(preds,splits)
-    print 'Inception Score calculation time: %f s'%(time.time()-start_time)
+    print('Inception Score calculation time: %f s'%(time.time()-start_time))
     return mean,std  # Reference values: 11.34 for 49984 CIFAR-10 training set images, or mean=11.31, std=0.08 if in 10 splits (default).
