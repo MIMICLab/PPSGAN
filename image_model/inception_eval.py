@@ -186,9 +186,9 @@ with graph.as_default():
         z_sensitivity = np.tile(z_sensitivity,(mb_size,1))
         
         
-        for i in range(1,len(y_test)//mb_size):
-            Xt_mb = x_test[i-1:mb_size*(i)]
-            Yt_mb = y_test[i-1:mb_size*(i)] 
+        for i in range(num_batches_per_epoch):
+            Xt_mb = next_batch(mb_size, x_train)
+            Yt_mb = next_batch(mb_size, y_train)
             enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)  
             enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)
             G_sample_curr = sess.run(G_sample,
@@ -198,7 +198,7 @@ with graph.as_default():
                                               Z_S: z_sensitivity})                
             samples_flat = tf.reshape(G_sample_curr,[mb_size,width,height,channels]).eval()
             samples_flat = samples_flat*2.0 - 1.0
-            if i == 1:
+            if i == 0:
                 img_set = samples_flat
             else:
                 img_set = np.append(img_set, samples_flat, axis=0) 

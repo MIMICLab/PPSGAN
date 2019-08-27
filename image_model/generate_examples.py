@@ -186,7 +186,7 @@ with graph.as_default():
         print(z_sensitivity)        
         z_sensitivity = np.tile(z_sensitivity,(mb_size,1))
         
-        for i in range(1,len(y_test)//mb_size):
+        for i in range(1):
             Xt_mb = x_test[i-1:mb_size*(i)]
             Yt_mb = y_test[i-1:mb_size*(i)] 
             enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)  
