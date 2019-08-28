@@ -14,8 +14,9 @@ model_name = sys.argv[2]
 z_dim = int(sys.argv[3])
 prev_iter = int(sys.argv[4])
 NUM_CLASSES = 10
-
+USE_DELTA = True
 USE_WGAN_GP = False
+
 mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
 
     
@@ -63,7 +64,8 @@ with graph.as_default():
                                                                    Z_noise, 
                                                                    var_G,
                                                                    z_dim,
-                                                                   Z_S)               
+                                                                   Z_S,
+                                                                   USE_DELTA)               
         if USE_WGAN_GP:
             D_real_logits = discriminator_gp(X, var_D)
             D_fake_logits = discriminator_gp(G_sample, var_D)

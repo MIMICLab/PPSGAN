@@ -3,7 +3,7 @@ import numpy as np
 
 INIT_EPSILON=1.0
 INIT_DELTA = 1e-5
-USE_DELTA = True
+
 
 def xavier_init(size):
     in_dim = size[0]
@@ -26,7 +26,7 @@ def delta_init(initial, size):
     return tf.add(initial,tf.random_normal(shape=size, stddev=stddev))
 
 def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sensitivity,
-              reuse=False,use_delta=USE_DELTA):
+              reuse=False,use_delta=True):
     idx=0
     current_input = x    
     encoder = []
