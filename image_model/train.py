@@ -221,7 +221,7 @@ with graph.as_default():
         
         #Adversarial training           
         for it in range(num_batches_per_epoch*10000):
-            for _ in range(1):
+            for _ in range(5):
                 if dataset == 'mnist':
                     X_mb, Y_mb = x_train.train.next_batch(mb_size)
                     X_mb = np.reshape(X_mb,[-1,28,28,1])
