@@ -11,10 +11,10 @@ from model import xavier_init, he_normal_init
 
 dataset = sys.argv[1]
 model_name = sys.argv[2]
-prev_iter = int(sys.argv[3])
-
+z_dim = int(sys.argv[3])
+prev_iter = int(sys.argv[4])
 NUM_CLASSES = 10
-z_dim = 128
+
 USE_WGAN_GP = False
 mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
 
@@ -169,9 +169,11 @@ with graph.as_default():
                     X_mb = next_batch(mb_size, x_train)
                     Y_mb = next_batch(mb_size, y_train)
                     
-                enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)   
-                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
-                
+                enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)
+                if USE_DELTA:
+                    enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
+                else:
+                    enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
                 summary,_, A_loss_curr= sess.run([merged, A_solver, G_zero_loss],
                                                         feed_dict={X: X_mb, 
                                                                    Y: Y_mb, 
@@ -195,7 +197,10 @@ with graph.as_default():
                 X_mb = next_batch(mb_size, x_train)
                 Y_mb = next_batch(mb_size, y_train)
             enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
-            enc_noise = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32)                  
+            if USE_DELTA:
+                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
+            else:
+                enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)                  
             max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
                                                                    X: X_mb, 
                                                                    Y: Y_mb, 
@@ -213,7 +218,7 @@ with graph.as_default():
         z_sensitivity = np.tile(z_sensitivity,(mb_size,1)) 
         
         #Adversarial training           
-        for it in range(num_batches_per_epoch*1000):
+        for it in range(num_batches_per_epoch*10000):
             for _ in range(1):
                 if dataset == 'mnist':
                     X_mb, Y_mb = x_train.train.next_batch(mb_size)
@@ -223,7 +228,10 @@ with graph.as_default():
                     Y_mb = next_batch(mb_size, y_train)
                 
                 enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
-                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
+                if USE_DELTA:
+                    enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
+                else:
+                    enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
                 _, D_curr, D_S_curr, D_C_curr = sess.run([D_solver, D_loss, D_S_loss, D_C_loss],
                                                          feed_dict={X: X_mb, 
                                                                    Y: Y_mb, 
@@ -246,7 +254,10 @@ with graph.as_default():
                 Xt_mb = x_test[:mb_size]
                 Yt_mb = y_test[:mb_size] 
                 enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)  
-                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)
+                if USE_DELTA:
+                    enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
+                else:
+                    enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
                 G_sample_curr, re_fake_curr = sess.run([G_sample, G_zero],
                                                        feed_dict={X: Xt_mb, 
                                                                   Y: Yt_mb, 
@@ -273,7 +284,10 @@ with graph.as_default():
                         X_mb = x_train.next_batch(mb_size)                    
                     else:
                         X_mb = next_batch(mb_size, x_train) 
-                    enc_noise = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32)                  
+                    if USE_DELTA:
+                        enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
+                    else:
+                        enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)                   
                     max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
                                                                    X: X_mb, 
                                                                    Y: Y_mb, 

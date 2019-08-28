@@ -169,7 +169,10 @@ with graph.as_default():
                 X_mb = next_batch(mb_size, x_train)
                 Y_mb = next_batch(mb_size, y_train)
             enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)     
-            enc_noise = np.random.normal(0.0,0.0,[mb_size,z_dim]).astype(np.float32)                  
+            if USE_DELTA:
+                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
+            else:
+                enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)     
             max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
                                                                    X: X_mb, 
                                                                    Y: Y_mb, 
@@ -190,7 +193,10 @@ with graph.as_default():
             Xt_mb = x_test[i-1:mb_size*(i)]
             Yt_mb = y_test[i-1:mb_size*(i)] 
             enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)  
-            enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)
+            if USE_DELTA:
+                enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
+            else:
+                enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
             G_sample_curr = sess.run(G_sample,
                                                    feed_dict={X: Xt_mb, 
                                                    Y: Yt_mb, 
