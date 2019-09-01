@@ -281,7 +281,7 @@ with graph.as_default():
                     enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
                 else:
                     enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
-                G_sample_curr, re_fake_curr = sess.run([G_sample, G_hacked],
+                G_sample_curr, re_fake_curr, hacked_curr = sess.run([G_sample, G_zero, G_hacked],
                                                        feed_dict={X: Xt_mb, 
                                                                   Y: Yt_mb, 
                                                                   Z_noise: enc_noise, 
@@ -291,6 +291,8 @@ with graph.as_default():
                 img_set = np.append(Xt_mb[:mb_size], samples_flat[:mb_size], axis=0)         
                 samples_flat = tf.reshape(re_fake_curr,[-1,width,height,channels]).eval() 
                 img_set = np.append(img_set, samples_flat[:mb_size], axis=0)
+                samples_flat = tf.reshape(hacked_curr,[-1,width,height,channels]).eval() 
+                img_set = np.append(img_set, samples_flat[:mb_size], axis=0)                
                 fig = plot(img_set, width, height, channels)
                 plt.savefig('results/dc_out_{}_{}/{}.png'.format(dataset,model_name,str(i).zfill(3)), bbox_inches='tight')
                 plt.close(fig)
