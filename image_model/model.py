@@ -55,7 +55,7 @@ def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sens
         W_fc1 = tf.Variable(xavier_init([z_flat_dim, z_dim]))
         var_G.append(W_fc1)
         z = tf.matmul(z_flat,W_fc1)  
-        z_original = z
+        
         
     with tf.name_scope("Noise_Applier"): 
         #self-attention on z 
@@ -102,7 +102,7 @@ def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sens
             
             #rescale noise with neg_attention probability
             W_noise = tf.matmul(neg_attention, W_noise)
-            
+            z_original = z
             z = tf.add(z,W_noise)
             z_noise = W_noise
             z_noise_applied = z
@@ -119,7 +119,7 @@ def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sens
             
             #rescale noise with neg_attention probability
             W_noise = tf.matmul(neg_attention, W_noise) 
-            
+            z_original = z
             z = tf.add(z,W_noise)
             z_noise = W_noise
             z_noise_applied = z
