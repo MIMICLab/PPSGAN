@@ -41,6 +41,7 @@ with graph.as_default():
         A_true_flat = X        
         #generator variables
         var_G = []
+        var_H = []
         #discriminator variables
         W1 = tf.Variable(he_normal_init([5,5,channels, hidden//2]))
         W2 = tf.Variable(he_normal_init([5,5, hidden//2,hidden]))
@@ -66,7 +67,8 @@ with graph.as_default():
                                                                    var_G,
                                                                    z_dim,
                                                                    Z_S,
-                                                                   USE_DELTA)               
+                                                                   USE_DELTA)  
+        G_hacked = hacker(input_shape, n_filters, filter_sizes, z_dim, X, var_H)
         if USE_WGAN_GP:
             D_real_logits = discriminator_gp(X, var_D)
             D_fake_logits = discriminator_gp(G_sample, var_D)
@@ -112,13 +114,15 @@ with graph.as_default():
             G_C_loss = tf.reduce_mean(
                        tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
                                                                   logits = C_fake_logits))
-            G_loss = G_S_loss + G_C_loss + G_zero_loss       
+            G_loss = G_S_loss + G_C_loss + G_zero_loss   
+        H_loss = tf.reduce_mean(tf.pow(X - G_hacked,2))
         latent_max = tf.reduce_max(z_original, axis = 0)
         latent_min = tf.reduce_min(z_original, axis = 0)          
         
         tf.summary.image('Original',X)
         tf.summary.image('fake',G_sample) 
         tf.summary.image('fake_zero', G_zero)
+        tf.summary.image('fake_hacked', G_hacked)
         
         tf.summary.scalar('D_loss', D_loss)  
         tf.summary.scalar('D_S_loss',D_S_loss) 
@@ -140,11 +144,13 @@ with graph.as_default():
             A_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_G, global_step=global_step)       
             D_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
             G_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
+            H_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(H_loss,var_list=var_H, global_step=global_step)
         
         else:
             A_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_G, global_step=global_step)       
             D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
             G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
+            H_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(H_loss,var_list=var_H, global_step=global_step)
         timestamp = str(int(time.time()))
         if not os.path.exists('results/'):
             os.makedirs('results/')        
@@ -244,7 +250,12 @@ with graph.as_default():
                                                          feed_dict={X: X_mb, 
                                                                    Y: Y_mb, 
                                                                    Z_noise: enc_noise, 
-                                                                   Z_S: z_sensitivity})              
+                                                                   Z_S: z_sensitivity}) 
+            _, H_curr = sess.run([H_solver, H_loss],
+                                                         feed_dict={X: X_mb, 
+                                                                   Y: Y_mb, 
+                                                                   Z_noise: enc_noise, 
+                                                                   Z_S: z_sensitivity})
             summary, _, G_curr, G_S_curr, G_C_curr, G_z_curr = sess.run([merged, G_solver,
                                                                          G_loss,G_S_loss, G_C_loss,
                                                                          G_zero_loss],
@@ -256,7 +267,11 @@ with graph.as_default():
             train_writer.add_summary(summary,current_step)
         
             if it % 100 == 0:
-                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; D_S: {:.4}; G_S: {:.4}; D_C: {:.4}; G_C: {:.4}; G_zero: {:.4};'.format(it,D_curr, G_curr, D_S_curr, G_S_curr, D_C_curr, G_C_curr, G_z_curr))
+                print('Iter: {}; D_loss: {:.4}; D_S: {:.4}; D_C: {:.4}; '.format(it,
+                                                                                  D_curr, D_S_curr,
+                                                                                  D_C_curr))
+                print('Iter: {}; G_loss: {:.4}; G_S: {:.4}; G_C: {:.4}; G_zero: {:.4};'.format(it, G_curr, G_S_curr, G_C_curr, G_z_curr))
+                print('Iter: {}; H_loss: {:.4};'.format(it, H_curr))
 
             if it % 1000 == 0:   
                 Xt_mb = x_test[:mb_size]
@@ -266,7 +281,7 @@ with graph.as_default():
                     enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
                 else:
                     enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32) 
-                G_sample_curr, re_fake_curr = sess.run([G_sample, G_zero],
+                G_sample_curr, re_fake_curr = sess.run([G_sample, G_hacked],
                                                        feed_dict={X: Xt_mb, 
                                                                   Y: Yt_mb, 
                                                                   Z_noise: enc_noise, 
