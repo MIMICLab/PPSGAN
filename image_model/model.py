@@ -55,7 +55,7 @@ def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sens
         W_fc1 = tf.Variable(xavier_init([z_flat_dim, z_dim]))
         var_G.append(W_fc1)
         z = tf.matmul(z_flat,W_fc1)  
-        
+        z_original = z        
         
     with tf.name_scope("Noise_Applier"): 
         #self-attention on z 
@@ -84,45 +84,41 @@ def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sens
        
         #epsilon-delta-DP        
         if use_delta:      
-            #W_epsilon = tf.Variable(epsilon_init(INIT_EPSILON, [z_dim]))
-            #epsilon_var = W_epsilon
-            #var_G.append(W_epsilon)
-            #W_epsilon = tf.maximum(tf.abs(W_epsilon),1e-8)
-            #W_delta = tf.Variable(delta_init(INIT_DELTA, [z_dim]))
-            #delta_var = W_delta
-            #var_G.append(W_delta)
+            W_epsilon = tf.Variable(epsilon_init(INIT_EPSILON, [z_dim]))
+            epsilon_var = W_epsilon
+            var_G.append(W_epsilon)
+            W_epsilon = tf.maximum(tf.abs(W_epsilon),1e-8)
+            W_delta = tf.Variable(delta_init(INIT_DELTA, [z_dim]))
+            delta_var = W_delta
+            var_G.append(W_delta)
 
-            #W_delta = tf.maximum(W_delta,1e-8)
-            #W_delta = tf.minimum(W_delta, 1.0)
-            #dp_delta = tf.log(tf.divide(1.25,W_delta))
-            dp_delta = tf.log(tf.divide(1.25,INIT_DELTA))
+            W_delta = tf.maximum(W_delta,1e-8)
+            W_delta = tf.minimum(W_delta, 1.0)
+            dp_delta = tf.log(tf.divide(1.25,W_delta))
             dp_delta = tf.maximum(dp_delta,0)
             dp_delta = tf.sqrt(tf.multiply(2.0,dp_delta))      
-            #dp_lambda = tf.multiply(dp_delta,tf.divide(sensitivity,W_epsilon))
-            dp_lambda = tf.multiply(dp_delta,tf.divide(sensitivity,INIT_EPSILON))
+            dp_lambda = tf.multiply(dp_delta,tf.divide(sensitivity,W_epsilon))
             W_noise = tf.multiply(noise,dp_lambda)
             
             #rescale noise with neg_attention probability
             W_noise = tf.matmul(neg_attention, W_noise)
-            z_original = z
             z = tf.add(z,W_noise)
             z_noise = W_noise
             z_noise_applied = z
         
         #epsilon-DP              
         else:    
-            #W_epsilon = tf.Variable(epsilon_init(INIT_EPSILON, [z_dim]))
-            #epsilon_var = W_epsilon
-            #var_G.append(W_epsilon)
+            W_epsilon = tf.Variable(epsilon_init(INIT_EPSILON, [z_dim]))
+            epsilon_var = W_epsilon
+            var_G.append(W_epsilon)
 
-            #W_epsilon = tf.maximum(W_epsilon,1e-8)
-            #dp_lambda = tf.divide(sensitivity,W_epsilon)
-            dp_lambda = tf.divide(sensitivity,INIT_EPSILON)
+            W_epsilon = tf.maximum(W_epsilon,1e-8)
+            dp_lambda = tf.divide(sensitivity,W_epsilon)
             W_noise = tf.multiply(noise,dp_lambda)
             
             #rescale noise with neg_attention probability
             W_noise = tf.matmul(neg_attention, W_noise) 
-            z_original = z
+
             z = tf.add(z,W_noise)
             z_noise = W_noise
             z_noise_applied = z

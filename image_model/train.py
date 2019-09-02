@@ -79,22 +79,18 @@ with graph.as_default():
             D_S_loss = tf.reduce_mean(D_fake_logits) - tf.reduce_mean(D_real_logits) + 10.0*gp 
             D_C_loss = tf.reduce_mean(
                        tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
-                                                                  logits = C_real_logits))
-            D_loss = D_S_loss + D_C_loss
-        
+                                                                  logits = C_real_logits))        
             G_zero_loss = tf.reduce_mean(tf.pow(X - G_zero,2))         
             G_S_loss = - tf.reduce_mean(D_fake_logits)
             G_C_loss = tf.reduce_mean(
                        tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
                                                                   logits = C_fake_logits))
-            G_loss = G_S_loss + G_C_loss + G_zero_loss
             
         else:
             D_real, D_real_logits = discriminator(X, var_D)
             D_fake, D_fake_logits = discriminator(G_sample, var_D)
             C_real_logits = classifier(X, var_C)
-            C_fake_logits = classifier(G_sample, var_C)
-            
+            C_fake_logits = classifier(G_sample, var_C)            
             D_real_loss = tf.nn.sigmoid_cross_entropy_with_logits(
                             logits=D_real_logits, labels=tf.ones_like(D_real))
             D_fake_loss = tf.nn.sigmoid_cross_entropy_with_logits(
@@ -103,10 +99,7 @@ with graph.as_default():
             D_S_loss = tf.reduce_mean(D_real_loss) + tf.reduce_mean(D_fake_loss)
             D_C_loss = tf.reduce_mean(
                        tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
-                                                                  logits = C_real_logits))
-            
-            D_loss = D_S_loss + D_C_loss
-        
+                                                                  logits = C_real_logits))                   
             G_zero_loss = tf.reduce_mean(tf.pow(X - G_zero,2))         
             G_S_loss = tf.reduce_mean(
                        tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, 
@@ -114,8 +107,11 @@ with graph.as_default():
             G_C_loss = tf.reduce_mean(
                        tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
                                                                   logits = C_fake_logits))
-            G_loss = G_S_loss + G_C_loss + G_zero_loss   
+
+            
         H_loss = tf.reduce_mean(tf.pow(X - G_hacked,2))
+        D_loss = D_S_loss + D_C_loss
+        G_loss = G_S_loss + G_C_loss + G_zero_loss - H_loss
         latent_max = tf.reduce_max(z_original, axis = 0)
         latent_min = tf.reduce_min(z_original, axis = 0)          
         
@@ -251,7 +247,7 @@ with graph.as_default():
                                                                    Y: Y_mb, 
                                                                    Z_noise: enc_noise, 
                                                                    Z_S: z_sensitivity}) 
-            _, H_curr = sess.run([H_solver, H_loss],
+                _, H_curr = sess.run([H_solver, H_loss],
                                                          feed_dict={X: X_mb, 
                                                                    Y: Y_mb, 
                                                                    Z_noise: enc_noise, 
