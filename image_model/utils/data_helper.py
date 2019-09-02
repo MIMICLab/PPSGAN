@@ -5,8 +5,6 @@ import sys
 import os
 import math
 import time
-from tensorflow.examples.tutorials.mnist import input_data
-from tensorflow.keras.datasets.cifar10 import load_data
 from glob import glob
 from random import shuffle
 from utils.download import download_celeb_a, download_lsun
@@ -27,9 +25,30 @@ def data_loader(dataset):
         channels = 1
         len_x_train = 60000
         len_x_test = 10000
-        x_train = input_data.read_data_sets('data/MNIST_data', one_hot=True)
-        y_train = x_train
-        x_test, y_test = x_train.test.next_batch(len_x_test, shuffle=False)
+        (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+
+        x_train = normalize(x_train)
+        x_test = normalize(x_test)
+        y_train = one_hot_encoded(y_train)
+        y_test = one_hot_encoded(y_test)
+        x_train = np.reshape(x_train,[-1,28,28,1])
+        x_test = np.reshape(x_test,[-1,28,28,1])
+        
+    if dataset == 'fmnist':
+        mb_size = 256
+        X_dim = 784
+        width = 28
+        height = 28
+        channels = 1
+        len_x_train = 60000
+        len_x_test = 10000
+        (x_train, y_train), (x_test, y_test) = tf.keras.datasets.fashion_mnist.load_data()
+
+        x_train = normalize(x_train)
+        x_test = normalize(x_test)
+        y_train = one_hot_encoded(y_train)
+        y_test = one_hot_encoded(y_test)
+        x_train = np.reshape(x_train,[-1,28,28,1])
         x_test = np.reshape(x_test,[-1,28,28,1])
         
     if dataset == 'svhn':
@@ -83,7 +102,7 @@ def data_loader(dataset):
         width = 32
         height = 32
         channels = 3    
-        (x_train, y_train), (x_test, y_test) = load_data()
+        (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
         x_train = normalize(x_train)
         x_test = normalize(x_test)
         y_train = one_hot_encoded(y_train)

@@ -147,12 +147,7 @@ with graph.as_default():
         #Autoencoder pre-train
         if prev_iter == 0:
             for idx in range(num_batches_per_epoch*100):
-                if dataset == 'mnist':
-                    X_mb, Y_mb = x_train.train.next_batch(mb_size)
-                    X_mb = np.reshape(X_mb,[-1,28,28,1])  
-                else:
-                    X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
-                    
+                X_mb, Y_mb = next_batch(mb_size, x_train, y_train)                    
                 enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)
                 if USE_DELTA:
                     enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
@@ -179,11 +174,7 @@ with graph.as_default():
                     
         #calculate approximated global sensitivity            
         for idx in range(num_batches_per_epoch):
-            if dataset == 'mnist':
-                X_mb, _ = x_train.train.next_batch(mb_size)
-                X_mb = np.reshape(X_mb,[-1,28,28,1])                   
-            else:
-                X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
+            X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
             enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
             if USE_DELTA:
                 enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
@@ -208,13 +199,7 @@ with graph.as_default():
         #Adversarial training           
         for it in range(num_batches_per_epoch*10000):
             for _ in range(5):
-                if dataset == 'mnist':
-                    X_mb, Y_mb = x_train.train.next_batch(mb_size)
-                    X_mb = np.reshape(X_mb,[-1,28,28,1])
-                else:
-                    X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
-
-                
+                X_mb, Y_mb = next_batch(mb_size, x_train, y_train)                
                 enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
                 if USE_DELTA:
                     enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
@@ -270,11 +255,7 @@ with graph.as_default():
                 
                 #calculate approximated global sensitivity            
                 for idx in range(num_batches_per_epoch):
-                    if dataset == 'mnist':
-                        X_mb, _ = x_train.train.next_batch(mb_size)
-                        X_mb = np.reshape(X_mb,[-1,28,28,1])                   
-                    else:
-                        X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
+                    X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
                     if USE_DELTA:
                         enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
                     else:
