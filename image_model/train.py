@@ -113,8 +113,8 @@ with graph.as_default():
                        tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
                                                                   logits = C_fake_logits_pre))
         
-        D_loss_pre = D_S_loss_pre + D_C_loss_pre
-        G_loss_pre = G_S_loss_pre + G_C_loss_pre + G_zero_loss
+        A_loss = D_C_loss_pre + G_C_loss_pre + G_zero_loss
+
 
         
         #sensitivity estimation
@@ -142,8 +142,8 @@ with graph.as_default():
         num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
         
 
-        D_solver_pre = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss_pre,var_list=var_D_C, global_step=global_step) 
-        G_solver_pre = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss_pre,var_list=var_G, global_step=global_step) 
+        A_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(A_loss,var_list=var_D_C+var_G, global_step=global_step) 
+
         D_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
         G_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
         
@@ -186,17 +186,10 @@ with graph.as_default():
                 else:
                     enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)
                 
-                _, D_curr, D_S_curr, D_C_curr = sess.run([D_solver_pre, 
-                                                          D_loss_pre, D_S_loss_pre, D_C_loss_pre],
-                                                         feed_dict={X: X_mb, 
-                                                                   Y: Y_mb, 
-                                                                   Z_noise: enc_zero, 
-                                                                   Z_S: enc_zero}) 
 
-                summary, _, G_curr, G_S_curr, G_C_curr, G_z_curr = sess.run([merged, 
-                                                                             G_solver_pre,
-                                                                             G_loss_pre,
-                                                                             G_S_loss_pre, 
+                summary, _, A_curr, D_C_curr, G_C_curr, G_z_curr = sess.run([merged, 
+                                                                             A_solver,
+                                                                             D_C_loss_pre, 
                                                                              G_C_loss_pre,
                                                                              G_zero_loss],
                                                         feed_dict={X: X_mb, 
@@ -207,10 +200,10 @@ with graph.as_default():
                 train_writer.add_summary(summary,current_step)
         
                 if idx % 100 == 0:
-                    print('Iter: {}; D_loss: {:.4}; D_S: {:.4}; D_C: {:.4}; '.format(idx,
-                                                                                  D_curr, D_S_curr,
-                                                                                  D_C_curr))
-                    print('Iter: {}; G_loss: {:.4}; G_S: {:.4}; G_C: {:.4}; G_zero: {:.4};'.format(idx, G_curr, G_S_curr, G_C_curr, G_z_curr))
+                    print('Iter: {}; A_loss: {:.4}; D_C: {:.4}; G_C: {:.4}; G_z: {:.4};'.format(idx,
+                                                                                  A_curr, D_C_curr,
+                                                                                  G_C_curr,G_z_curr))
+
                 
 
                 if idx % 1000 == 0: 
