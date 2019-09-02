@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 INIT_EPSILON=1.0
-INIT_DELTA = 1e-5
+INIT_DELTA = 1e-8
 
 
 def xavier_init(size):
