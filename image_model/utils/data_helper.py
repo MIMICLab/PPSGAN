@@ -45,9 +45,13 @@ def data_loader(dataset):
         test_location = 'data/SVHN/test_32x32.mat'
 
         train_dict = sio.loadmat(train_location)
+        Y_train = train_dict['y']
+        for i in range(len(Y_train)):
+            if Y_train[i]%10 == 0:
+                Y_train[i] = 0
         x_ = np.asarray(train_dict['X'])
         y_ = np.asarray(train_dict['y'])
-        y_ -= 1
+
         x_train = []
         for i in range(x_.shape[3]):
             x_train.append(x_[:,:,:,i])
@@ -56,9 +60,14 @@ def data_loader(dataset):
         y_train = one_hot_encoded(y_)
         
         test_dict = sio.loadmat(test_location)
+        Y_test = test_dict['y']
+        for i in range(len(Y_test)):
+            if Y_test[i]%10 == 0:
+                Y_test[i] = 0
+                
         x_ = np.asarray(test_dict['X'])
-        y_ = np.asarray(test_dict['y'])
-        y_ -= 1
+        y_ = np.asarray(Y_test)
+
         x_test = []
         for i in range(x_.shape[3]):
             x_test.append(x_[:,:,:,i])
