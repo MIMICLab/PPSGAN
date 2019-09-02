@@ -108,7 +108,7 @@ with graph.as_default():
                        tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
                                                                   logits = C_fake_logits))
 
-            
+        A_loss = tf.reduce_mean(tf.pow(X - G_sample,2))    
         H_loss = tf.reduce_mean(tf.pow(X - G_hacked,2))
         D_loss = D_S_loss + D_C_loss
         G_loss = G_S_loss + G_C_loss + G_zero_loss - H_loss
@@ -137,7 +137,7 @@ with graph.as_default():
         num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
         
         if USE_ADAMW:
-            A_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_G, global_step=global_step)       
+            A_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(A_loss,var_list=var_G, global_step=global_step)       
             D_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
             G_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
             H_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(H_loss,var_list=var_H, global_step=global_step)
@@ -184,16 +184,16 @@ with graph.as_default():
                     enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
                 else:
                     enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
-                summary,_, A_loss_curr= sess.run([merged, A_solver, G_zero_loss],
+                summary,_, A_loss_curr= sess.run([merged, A_solver, A_loss],
                                                         feed_dict={X: X_mb, 
                                                                    Y: Y_mb, 
-                                                                   Z_noise: enc_noise, 
+                                                                   Z_noise: enc_zero, 
                                                                    Z_S: enc_zero}) 
                 
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
                 if idx % 100 == 0:
-                    print('Iter: {}; G_zero_loss: {:.4};'.format(idx,A_loss_curr))
+                    print('Iter: {}; A_loss: {:.4};'.format(idx,A_loss_curr))
                 if idx % 1000 == 0: 
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                     print('Saved model at {} at step {}'.format(path, current_step)) 
@@ -214,7 +214,7 @@ with graph.as_default():
             max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
                                                                    X: X_mb, 
                                                                    Y: Y_mb, 
-                                                                   Z_noise: enc_noise, 
+                                                                   Z_noise: enc_zero, 
                                                                    Z_S: enc_zero}) 
             if idx == 0:
                 z_max = max_curr
