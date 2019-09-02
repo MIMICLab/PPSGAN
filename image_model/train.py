@@ -90,33 +90,8 @@ with graph.as_default():
 
         D_loss = D_S_loss + D_C_loss
         G_loss = G_S_loss + G_C_loss + G_zero_loss
-        
-        #pre-train losses
-        D_real_pre, D_real_logits_pre = discriminator(X, var_D)
-        D_fake_pre, D_fake_logits_pre = discriminator(G_zero, var_D)
-        C_real_logits_pre = classifier(X, var_C)
-        C_fake_logits_pre = classifier(G_zero, var_C)   
-        
-        D_real_loss_pre = tf.nn.sigmoid_cross_entropy_with_logits(
-                            logits=D_real_logits_pre, labels=tf.ones_like(D_real_pre))
-        D_fake_loss_pre = tf.nn.sigmoid_cross_entropy_with_logits(
-                               logits=D_fake_logits_pre, labels=tf.zeros_like(D_fake_pre))
-            
-        D_S_loss_pre = tf.reduce_mean(D_real_loss_pre) + tf.reduce_mean(D_fake_loss_pre)
-        D_C_loss_pre = tf.reduce_mean(
-                       tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
-                                                                  logits = C_real_logits_pre))                           
-        G_S_loss_pre = tf.reduce_mean(
-                       tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits_pre, 
-                                                               labels=tf.ones_like(D_fake_pre)))
-        G_C_loss_pre = tf.reduce_mean(
-                       tf.nn.softmax_cross_entropy_with_logits_v2(labels = Y, 
-                                                                  logits = C_fake_logits_pre))
-        
-        A_loss = D_C_loss_pre + G_C_loss_pre + G_zero_loss
 
-
-        
+       
         #sensitivity estimation
         latent_max = tf.reduce_max(z_original, axis = 0)
         latent_min = tf.reduce_min(z_original, axis = 0)          
@@ -142,8 +117,7 @@ with graph.as_default():
         num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
         
 
-        A_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(A_loss,var_list=var_D_C+var_G, global_step=global_step) 
-
+        A_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_zero_loss,var_list=var_G, global_step=global_step) 
         D_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
         G_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
         
@@ -187,12 +161,7 @@ with graph.as_default():
                     enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)
                 
 
-                summary, _, A_curr, D_C_curr, G_C_curr, G_z_curr = sess.run([merged, 
-                                                                             A_solver,
-                                                                             A_loss,
-                                                                             D_C_loss_pre, 
-                                                                             G_C_loss_pre,
-                                                                             G_zero_loss],
+                summary, _,  G_z_curr = sess.run([merged, A_solver, G_zero_loss],
                                                         feed_dict={X: X_mb, 
                                                                    Y: Y_mb,  
                                                                    Z_noise: enc_zero,
@@ -201,9 +170,7 @@ with graph.as_default():
                 train_writer.add_summary(summary,current_step)
         
                 if idx % 100 == 0:
-                    print('Iter: {}; A_loss: {:.4}; D_C: {:.4}; G_C: {:.4}; G_z: {:.4};'.format(idx,
-                                                                                  A_curr, D_C_curr,
-                                                                                  G_C_curr,G_z_curr))
+                    print('Iter: {}; G_z: {:.4};'.format(idx, G_z_curr))
 
                 
 
