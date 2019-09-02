@@ -189,6 +189,7 @@ with graph.as_default():
 
                 summary, _, A_curr, D_C_curr, G_C_curr, G_z_curr = sess.run([merged, 
                                                                              A_solver,
+                                                                             A_loss,
                                                                              D_C_loss_pre, 
                                                                              G_C_loss_pre,
                                                                              G_zero_loss],
