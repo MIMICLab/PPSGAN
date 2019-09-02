@@ -151,8 +151,7 @@ with graph.as_default():
                     X_mb, Y_mb = x_train.train.next_batch(mb_size)
                     X_mb = np.reshape(X_mb,[-1,28,28,1])  
                 else:
-                    X_mb = next_batch(mb_size, x_train)
-                    Y_mb = next_batch(mb_size, y_train)
+                    X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
                     
                 enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32)
                 if USE_DELTA:
@@ -184,8 +183,7 @@ with graph.as_default():
                 X_mb, _ = x_train.train.next_batch(mb_size)
                 X_mb = np.reshape(X_mb,[-1,28,28,1])                   
             else:
-                X_mb = next_batch(mb_size, x_train)
-                Y_mb = next_batch(mb_size, y_train)
+                X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
             enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
             if USE_DELTA:
                 enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
@@ -214,8 +212,8 @@ with graph.as_default():
                     X_mb, Y_mb = x_train.train.next_batch(mb_size)
                     X_mb = np.reshape(X_mb,[-1,28,28,1])
                 else:
-                    X_mb = next_batch(mb_size, x_train)
-                    Y_mb = next_batch(mb_size, y_train)
+                    X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
+
                 
                 enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
                 if USE_DELTA:
@@ -274,11 +272,9 @@ with graph.as_default():
                 for idx in range(num_batches_per_epoch):
                     if dataset == 'mnist':
                         X_mb, _ = x_train.train.next_batch(mb_size)
-                        X_mb = np.reshape(X_mb,[-1,28,28,1])
-                    elif dataset == 'lsun':
-                        X_mb = x_train.next_batch(mb_size)                    
+                        X_mb = np.reshape(X_mb,[-1,28,28,1])                   
                     else:
-                        X_mb = next_batch(mb_size, x_train) 
+                        X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
                     if USE_DELTA:
                         enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
                     else:

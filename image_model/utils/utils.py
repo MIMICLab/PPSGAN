@@ -9,17 +9,17 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 import matplotlib.gridspec as gridspec
 
-def next_batch(num, data, shuffle=True):
+def next_batch(num, data_x, data_y, shuffle=True):
     '''
     Return a total of `num` random samples and labels. 
     '''
-    idx = np.arange(0 , len(data))
+    idx = np.arange(0 , len(data_x))
     if shuffle == True:
         np.random.shuffle(idx)
     idx = idx[:num]
-    data_shuffle = [data[i] for i in idx]
-
-    return np.asarray(data_shuffle)
+    data_shuffle_x = [data_x[i] for i in idx]
+    data_shuffle_y = [data_y[i] for i in idx]
+    return np.asarray(data_shuffle_x),np.asarray(data_shuffle_y)
 
 def next_test_batch(it, num, data):
     '''
