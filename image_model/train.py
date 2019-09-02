@@ -203,21 +203,19 @@ with graph.as_default():
                                                                    Y: Y_mb,  
                                                                    Z_noise: enc_zero,
                                                                    Z_S: enc_zero}) 
-            current_step = tf.train.global_step(sess, global_step)
-            train_writer.add_summary(summary,current_step)
-        
-            if idx % 100 == 0:
-                print('Iter: {}; D_loss: {:.4}; D_S: {:.4}; D_C: {:.4}; '.format(idx,
-                                                                                  D_curr, D_S_curr,
-                                                                                  D_C_curr))
-                print('Iter: {}; G_loss: {:.4}; G_S: {:.4}; G_C: {:.4}; G_zero: {:.4};'.format(idx, G_curr, G_S_curr, G_C_curr, G_z_curr))
-                
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
+        
+                if idx % 100 == 0:
+                    print('Iter: {}; D_loss: {:.4}; D_S: {:.4}; D_C: {:.4}; '.format(idx,
+                                                                                  D_curr, D_S_curr,
+                                                                                  D_C_curr))
+                    print('Iter: {}; G_loss: {:.4}; G_S: {:.4}; G_C: {:.4}; G_zero: {:.4};'.format(idx, G_curr, G_S_curr, G_C_curr, G_z_curr))
+                
 
-            if idx % 1000 == 0: 
-                path = saver.save(sess, checkpoint_prefix, global_step=current_step)
-                print('Saved model at {} at step {}'.format(path, current_step)) 
+                if idx % 1000 == 0: 
+                    path = saver.save(sess, checkpoint_prefix, global_step=current_step)
+                    print('Saved model at {} at step {}'.format(path, current_step)) 
                     
         #calculate approximated global sensitivity            
         for idx in range(num_batches_per_epoch):
