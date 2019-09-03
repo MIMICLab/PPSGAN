@@ -197,7 +197,7 @@ with graph.as_default():
         z_sensitivity = np.tile(z_sensitivity,(mb_size,1)) 
         
         #Adversarial training           
-        for it in range(num_batches_per_epoch*10000):
+        for it in range(num_batches_per_epoch*1000):
             for _ in range(5):
                 X_mb, Y_mb = next_batch(mb_size, x_train, y_train)                
                 enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
