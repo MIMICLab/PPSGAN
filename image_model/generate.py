@@ -187,6 +187,10 @@ def generate_one(dataset,model_name, z_dim,USE_DELTA):
 
 def generate_multi():
     pathes = os.listdir("results/models/")
+    current = os.listdir("results/generated/")
+    done_list = []
+    for file in current:
+        done_list.append(file.split('.')[0])
     for path in pathes:
         info = path.split('_')
         dataset = info[0]
@@ -196,7 +200,8 @@ def generate_multi():
             USE_DELTA = False
         else:
             USE_DELTA = True
-        real_set, img_set = generate_one(dataset, model_name, z_dim,USE_DELTA)
+        if model_name not in done_list:
+            real_set, img_set = generate_one(dataset, model_name, z_dim,USE_DELTA)
         tf.reset_default_graph()
              
 generate_multi()
