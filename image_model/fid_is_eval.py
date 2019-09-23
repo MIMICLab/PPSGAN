@@ -23,7 +23,7 @@ def fid_is_eval():
             data = np.load('results/generated/{}'.format(path))
             mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)  
             real_set = x_train
-            img_set = data['x_generated']
+            img_set = data['x']
             print("Calculating Fréchet Inception Distance for {}".format(model_name))
             print("Calculating Fréchet Inception Distance for {}".format(model_name), file =fp)
             fid_set_r = real_set*255.0
