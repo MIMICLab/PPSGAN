@@ -21,7 +21,7 @@ tfgan = tf.contrib.gan
 
 session=tf.InteractiveSession()
 
-BATCH_SIZE=64
+BATCH_SIZE=256
 
 # Run images through Inception.
 inception_images=tf.placeholder(tf.float32,[BATCH_SIZE,3,None,None])
@@ -43,7 +43,7 @@ def inception_logits(images=inception_images, num_splits=1):
 
 logits=inception_logits()
 
-def get_inception_probs(inps):
+def get_inception_probs(session, inps):
     preds = []
     n_batches = len(inps)//BATCH_SIZE
     for i in range(n_batches):
@@ -54,7 +54,7 @@ def get_inception_probs(inps):
     preds=np.exp(preds)/np.sum(np.exp(preds),1,keepdims=True)
     return preds
 
-def preds2score(preds,splits):
+def preds2score(session, preds,splits):
     scores = []
     for i in range(splits):
         part = preds[(i * preds.shape[0] // splits):((i + 1) * preds.shape[0] // splits), :]
@@ -64,6 +64,8 @@ def preds2score(preds,splits):
     return np.mean(scores), np.std(scores)
 
 def get_inception_score(images, splits=10):
+    session_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
+    session = tf.Session(config=session_conf)
     assert(type(images) == np.ndarray)
     assert(len(images.shape)==4)
     assert(images.shape[1]==3)
@@ -71,8 +73,9 @@ def get_inception_score(images, splits=10):
     assert(np.min(images[0])>=-1)
 
     start_time=time.time()
-    preds=get_inception_probs(images)
+    preds=get_inception_probs(session,images)
     print('Inception Score for %i samples in %i splits'% (preds.shape[0],splits))
-    mean,std = preds2score(preds,splits)
+    mean,std = preds2score(session,preds,splits)
     print('Inception Score calculation time: %f s'%(time.time()-start_time))
+    session.close()
     return mean,std  # Reference values: 11.34 for 49984 CIFAR-10 training set images, or mean=11.31, std=0.08 if in 10 splits (default).

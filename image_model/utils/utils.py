@@ -21,14 +21,16 @@ def next_batch(num, data_x, data_y, shuffle=True):
     data_shuffle_y = [data_y[i] for i in idx]
     return np.asarray(data_shuffle_x),np.asarray(data_shuffle_y)
 
-def next_test_batch(it, num, data):
+def next_test_batch(it, num, data_x, data_y,):
     '''
     Return a total of `num` random samples and labels. 
     '''
-    idx = np.arange(0 , len(data))
+    idx = np.arange(0 , len(data_x))
     idx = idx[num*it:num*it+num]
-    data_shuffle = [data[i] for i in idx]
-    return np.asarray(data_shuffle)
+    data_shuffle_x = [data_x[i] for i in idx]
+    data_shuffle_y = [data_y[i] for i in idx]
+    return np.asarray(data_shuffle_x),np.asarray(data_shuffle_y)
+
 
 def plot(samples, width, height, channels):
     fig = plt.figure(figsize=(256,3))

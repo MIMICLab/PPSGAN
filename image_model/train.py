@@ -139,7 +139,7 @@ with graph.as_default():
             os.makedirs('results/dc_out_{}_{}/'.format(dataset,model_name))           
 
         train_writer = tf.summary.FileWriter('results/graphs/{}_{}'.format(dataset,model_name),sess.graph)
-        saver = tf.train.Saver(tf.global_variables())
+        saver = tf.train.Saver(tf.global_variables(),save_relative_paths=True)
         sess.run(tf.global_variables_initializer())
         
         if prev_iter != 0:
