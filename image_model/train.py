@@ -135,8 +135,8 @@ with graph.as_default():
             os.makedirs('results/models/')
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
-        if not os.path.exists('results/dc_out_{}_{}/'.format(dataset,model_name)):
-            os.makedirs('results/dc_out_{}_{}/'.format(dataset,model_name))           
+        if not os.path.exists('results/examples/{}_{}/'.format(dataset,model_name)):
+            os.makedirs('results/examples/{}_{}/'.format(dataset,model_name))           
 
         train_writer = tf.summary.FileWriter('results/graphs/{}_{}'.format(dataset,model_name),sess.graph)
         saver = tf.train.Saver(tf.global_variables(),save_relative_paths=True)
@@ -249,7 +249,7 @@ with graph.as_default():
                 img_set = np.append(img_set, samples_flat[:mb_size], axis=0)
              
                 fig = plot(img_set, width, height, channels)
-                plt.savefig('results/dc_out_{}_{}/{}.png'.format(dataset,model_name,str(i).zfill(3)), bbox_inches='tight')
+                plt.savefig('results/examples/{}_{}/{}.png'.format(dataset,model_name,str(i).zfill(3)), bbox_inches='tight')
                 plt.close(fig)
                 i += 1
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
