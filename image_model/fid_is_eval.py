@@ -18,7 +18,7 @@ def fid_is_eval():
     for path in pathes:
         info = path.split('_')
         dataset = info[0]
-        model_name = path.split('.')[0]
+        model_name = path
         if dataset == "cifar10":
             data = np.load('results/generated/{}'.format(path))
             mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)  
