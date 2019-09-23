@@ -117,17 +117,11 @@ def generate_one(dataset,model_name, z_dim,USE_DELTA):
             D_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D_C, global_step=global_step)
             G_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
 
-            timestamp = str(int(time.time()))
-            if not os.path.exists('results/'):
-                os.makedirs('results/')        
+            timestamp = str(int(time.time()))    
             out_dir = os.path.abspath(os.path.join(os.path.curdir, 
                                                    "results/models/"+ model_name))
             checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
             checkpoint_prefix = os.path.join(checkpoint_dir, "model")
-            if not os.path.exists('results/models/'):
-                os.makedirs('results/models/')
-            if not os.path.exists(checkpoint_dir):
-                os.makedirs(checkpoint_dir)
             if not os.path.exists("results/generated/"):
                 os.makedirs("results/generated/")           
 
