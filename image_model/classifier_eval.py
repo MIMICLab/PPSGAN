@@ -9,12 +9,13 @@ import time
 from utils.data_helper import data_loader
 from model import xavier_init, he_normal_init
 
+mb_size=512
 def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 
     NUM_CLASSES = 10
     fp = open("classifier_result.txt",'a')
     print("dataset: {}; model name: {} Evaluation start.".format(dataset,model_name))
-    mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
+    _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
 
 
     graph = tf.Graph()
@@ -81,12 +82,11 @@ def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
                     correct_y = np.argmax(y_test,axis=1)
                     correct_predictions = sum(predictions == correct_y)
                     accuracy = correct_predictions/float(len_x_test)
-                    print('iter: {}; accuracy: {}'.format(it,accuracy))
-                    if best_accuracy < accuracy:
-                        best_accuracy = accuracy
+                    print('Iter: {}; accuracy: {:.4}'.format(it,accuracy))
+                    best_accuracy = accuracy
              
-            print("dataset: {} model name: {} with best_accuracy: {} fin.".format(dataset, model_name, best_accuracy))
-            print("dataset: {} model name: {} with best_accuracy: {} fin.".format(dataset, model_name, best_accuracy), file = fp)
+            print("dataset: {} model name: {} with best_accuracy: {:.4} fin.".format(dataset, model_name, best_accuracy))
+            print("dataset: {} model name: {} with best_accuracy: {:.4} fin.".format(dataset, model_name, best_accuracy), file = fp)
             fp.close()
             sess.close()
             
@@ -96,7 +96,7 @@ def classifier_multi():
     pathes = os.listdir("results/generated/")
     original = ["mnist","fmnist","cifar10","svhn"]
     for dataset in original:
-        mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
+        _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
         classifier_one(dataset, "original", x_train, y_train, len_x_train)
         tf.reset_default_graph() 
         
@@ -104,16 +104,16 @@ def classifier_multi():
         info = path.split('_')
         dataset = info[0]
         model_name = path
-        mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
+        _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
         data = np.load('results/generated/{}'.format(path))
         x_target = data['x']
         y_target = data['y']
         classifier_one(dataset, model_name, x_target, y_target, len_x_train)
         tf.reset_default_graph()
-        model_name = model_name+'_augmented'
-        x_target = np.append(x_target,x_train, axis=0)
-        y_target = np.append(y_target,y_train, axis=0)
-        classifier_one(dataset, model_name, x_target, y_target, len_x_train*2 )
-        tf.reset_default_graph()   
+        #model_name = model_name+'_augmented'
+        #x_target = np.append(x_target,x_train, axis=0)
+        #y_target = np.append(y_target,y_train, axis=0)
+        #classifier_one(dataset, model_name, x_target, y_target, len_x_train*2 )
+        #tf.reset_default_graph()   
         
 classifier_multi()
