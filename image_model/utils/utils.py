@@ -29,7 +29,7 @@ def next_test_batch(it, num, data_x, data_y,):
     idx = idx[num*it:num*it+num]
     data_shuffle_x = [data_x[i] for i in idx]
     data_shuffle_y = [data_y[i] for i in idx]
-    return np.asarray(data_shuffle_x),np.asarray(data_shuffle_y)
+    return np.asarray(data_shuffle_x), np.asarray(data_shuffle_y)
 
 
 def plot(samples, width, height, channels):
