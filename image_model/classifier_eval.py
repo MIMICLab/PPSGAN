@@ -9,7 +9,6 @@ import time
 from utils.data_helper import data_loader
 from model import xavier_init, he_normal_init
 
-fp = open("generation_result.txt",'w')
 def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 
     NUM_CLASSES = 10
