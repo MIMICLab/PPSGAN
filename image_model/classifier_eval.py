@@ -9,7 +9,7 @@ import time
 from utils.data_helper import data_loader
 from model import xavier_init, he_normal_init
 
-mb_size=512
+mb_size=256
 def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 
     NUM_CLASSES = 10
@@ -62,7 +62,7 @@ def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
             best_accuracy = 0.0
             x_temp = np.append(x_test, x_test[:mb_size], axis=0)
             y_temp = np.append(y_test, y_test[:mb_size], axis=0)
-            for it in range(num_batches_per_epoch*100):
+            for it in range(num_batches_per_epoch*400):
                 X_mb, Y_mb = next_batch(mb_size, x_target, y_target)
                 _, C_curr = sess.run([C_solver, C_loss], feed_dict={X: X_mb, Y: Y_mb})
                 if it % 100 == 0:
@@ -83,7 +83,8 @@ def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
                     correct_predictions = sum(predictions == correct_y)
                     accuracy = correct_predictions/float(len_x_test)
                     print('Iter: {}; accuracy: {:.4}'.format(it,accuracy))
-                    best_accuracy = accuracy
+                    if accuracy > best_accuracy:
+                        best_accuracy = accuracy
              
             print("dataset: {} model name: {} with best_accuracy: {:.4} fin.".format(dataset, model_name, best_accuracy))
             print("dataset: {} model name: {} with best_accuracy: {:.4} fin.".format(dataset, model_name, best_accuracy), file = fp)
