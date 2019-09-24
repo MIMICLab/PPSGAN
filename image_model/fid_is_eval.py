@@ -17,10 +17,6 @@ def fid_is_eval():
     pathes = os.listdir("results/generated/")
     finished = []
     tmp_path = []
-
-    fp = open("FID_IS_result.txt",'a')
-    print("start evaluation",file=fp)
-    fp.close()
     for path in pathes:
         if path not in finished:
             tmp_path.append(path)
