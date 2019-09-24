@@ -110,10 +110,10 @@ def classifier_multi():
         y_target = data['y']
         classifier_one(dataset, model_name, x_target, y_target, len_x_train)
         tf.reset_default_graph()
-        #model_name = model_name+'_augmented'
-        #x_target = np.append(x_target,x_train, axis=0)
-        #y_target = np.append(y_target,y_train, axis=0)
-        #classifier_one(dataset, model_name, x_target, y_target, len_x_train*2 )
-        #tf.reset_default_graph()   
+        model_name = model_name+'_augmented'
+        x_target = np.append(x_target,x_train, axis=0)
+        y_target = np.append(y_target,y_train, axis=0)
+        classifier_one(dataset, model_name, x_target, y_target, len_x_train*2 )
+        tf.reset_default_graph()   
         
 classifier_multi()
