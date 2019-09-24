@@ -21,6 +21,7 @@ tfgan = tf.contrib.gan
 
 # A smaller BATCH_SIZE reduces GPU memory usage, but at the cost of a slight slowdown
 BATCH_SIZE = 256
+session = tf.InteractiveSession()
 
 # Run images through Inception.
 inception_images = tf.placeholder(tf.float32, [None, 3, None, None])
@@ -45,7 +46,7 @@ def inception_activations(images = inception_images, num_splits = 1):
 
 activations =inception_activations()
 
-def get_inception_activations(session, inps):
+def get_inception_activations(inps):
     n_batches = int(np.ceil(float(inps.shape[0]) / BATCH_SIZE))
     act = np.zeros([inps.shape[0], 2048], dtype = np.float32)
     for i in range(n_batches):
@@ -53,12 +54,10 @@ def get_inception_activations(session, inps):
         act[i * BATCH_SIZE : i * BATCH_SIZE + min(BATCH_SIZE, inp.shape[0])] = session.run(activations, feed_dict = {inception_images: inp})
     return act
 
-def activations2distance(session, act1, act2):
+def activations2distance(act1, act2):
      return session.run(fcd, feed_dict = {activations1: act1, activations2: act2})
         
 def get_fid(images1, images2):
-    session_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
-    session = tf.Session(config=session_conf)
     assert(type(images1) == np.ndarray)
     assert(len(images1.shape) == 4)
     assert(images1.shape[1] == 3)
@@ -70,9 +69,8 @@ def get_fid(images1, images2):
     assert(images1.shape == images2.shape), 'The two numpy arrays must have the same shape'
     print('Calculating FID with %i images from each distribution' % (images1.shape[0]))
     start_time = time.time()
-    act1 = get_inception_activations(session, images1)
-    act2 = get_inception_activations(session, images2)
-    fid = activations2distance(session,act1, act2)
+    act1 = get_inception_activations(images1)
+    act2 = get_inception_activations(images2)
+    fid = activations2distance(act1, act2)
     print('FID calculation time: %f s' % (time.time() - start_time))
-    session.close()
     return fid
