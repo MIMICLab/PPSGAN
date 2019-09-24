@@ -53,7 +53,7 @@ def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 
             num_batches_per_epoch = int((len_x_target-1)/mb_size) + 1
 
-            C_solver = tf.train.AdamOptimizer(learning_rate=1e-3,beta1=0.5, beta2=0.9).minimize(C_loss,var_list=var_C, global_step=global_step)
+            C_solver = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-4,learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(C_loss,var_list=var_C, global_step=global_step)
 
 
             timestamp = str(int(time.time()))    
