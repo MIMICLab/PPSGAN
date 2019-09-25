@@ -1,0 +1,32 @@
+Calculating Fréchet Inception Distance for cifar10_cifar10_256_ed_0.1.npz
+FID: 45.0109748840332
+Calculating inception score for cifar10_cifar10_256_ed_0.1.npz
+mean: 6.229010581970215 std: 0.11163930594921112
+Calculating Fréchet Inception Distance for cifar10_cifar10_128.npz
+FID: 47.67843246459961
+Calculating inception score for cifar10_cifar10_128.npz
+mean: 6.008896350860596 std: 0.08896142244338989
+Calculating Fréchet Inception Distance for cifar10_cifar10_256_e.npz
+FID: 45.346126556396484
+Calculating inception score for cifar10_cifar10_256_e.npz
+mean: 6.215365409851074 std: 0.09829246997833252
+Calculating Fréchet Inception Distance for cifar10_cifar10_128_ed_0.1.npz
+FID: 46.628387451171875
+Calculating inception score for cifar10_cifar10_128_ed_0.1.npz
+mean: 5.9098615646362305 std: 0.09977447986602783
+Calculating Fréchet Inception Distance for cifar10_cifar10_128_e_0.1.npz
+FID: 48.994197845458984
+Calculating inception score for cifar10_cifar10_128_e_0.1.npz
+mean: 6.122640132904053 std: 0.05301744490861893
+Calculating Fréchet Inception Distance for cifar10_cifar10_256_e_0.1.npz
+FID: 44.70403289794922
+Calculating inception score for cifar10_cifar10_256_e_0.1.npz
+mean: 6.244072437286377 std: 0.11695802956819534
+Calculating Fréchet Inception Distance for cifar10_cifar10_256_ed.npz
+FID: 46.95137405395508
+Calculating inception score for cifar10_cifar10_256_ed.npz
+mean: 6.069365978240967 std: 0.060432545840740204
+Calculating Fréchet Inception Distance for cifar10_cifar10_128_e.npz
+FID: 49.6731071472168
+Calculating inception score for cifar10_cifar10_128_e.npz
+mean: 5.873647689819336 std: 0.13338249921798706

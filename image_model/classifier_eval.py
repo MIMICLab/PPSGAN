@@ -62,29 +62,33 @@ def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 
             x_temp = np.append(x_test, x_test[:mb_size], axis=0)
             y_temp = np.append(y_test, y_test[:mb_size], axis=0)
-            for it in range(num_batches_per_epoch*200):
+            best_accuracy = 0.0
+            for it in range(num_batches_per_epoch*1000):
                 X_mb, Y_mb = next_batch(mb_size, x_target, y_target)
                 _, C_curr = sess.run([C_solver, C_loss], feed_dict={X: X_mb, Y: Y_mb})
                 if it % 100 == 0:
                     print('Iter: {}; C_loss: {:.4};'.format(it,C_curr))
-                    
-            predictions = []
-            for jt in range(len_x_test//mb_size+1):
-                Xt_mb, Yt_mb = next_test_batch(jt, mb_size, x_temp, y_temp)
-                _, C_pred = sess.run([C_solver, C_real_logits], feed_dict={X: Xt_mb, Y: Yt_mb})
-                if len(predictions) == 0:
-                    predictions = C_pred
-                else:
-                    predictions = np.append(predictions,C_pred,axis=0)
+                if it %1000 == 0:    
+                    predictions = []
+                    for jt in range(len_x_test//mb_size+1):
+                        Xt_mb, Yt_mb = next_test_batch(jt, mb_size, x_temp, y_temp)
+                        _, C_pred = sess.run([C_solver, C_real_logits], feed_dict={X: Xt_mb, Y: Yt_mb})
+                        if len(predictions) == 0:
+                            predictions = C_pred
+                        else:
+                            predictions = np.append(predictions,C_pred,axis=0)
                             
-            predictions = predictions[:len_x_test]
-            predictions = np.argmax(predictions,axis=1)
-            correct_y = np.argmax(y_test,axis=1)
-            correct_predictions = sum(predictions == correct_y)
-            accuracy = correct_predictions/float(len_x_test)
+                    predictions = predictions[:len_x_test]
+                    predictions = np.argmax(predictions,axis=1)
+                    correct_y = np.argmax(y_test,axis=1)
+                    correct_predictions = sum(predictions == correct_y)
+                    accuracy = correct_predictions/float(len_x_test)
+                    print('Iter: {}; accuracy: {:.4}; best accuracy: {:.4}'.format(it,accuracy, best_accuracy))
+                    if accuracy > best_accuracy:
+                        best_accuracy = accuracy
              
-            print("dataset: {} model name: {} with accuracy: {:.4} fin.".format(dataset, model_name, accuracy))
-            print("dataset: {} model name: {} with accuracy: {:.4} fin.".format(dataset, model_name, accuracy), file = fp)
+            print("dataset: {} model name: {} with best accuracy: {:.4} fin.".format(dataset, model_name, best_accuracy))
+            print("dataset: {} model name: {} with best accuracy: {:.4} fin.".format(dataset, model_name, best_accuracy), file = fp)
             fp.close()
             sess.close()
             
@@ -108,10 +112,5 @@ def classifier_multi():
         y_target = data['y']
         classifier_one(dataset, model_name, x_target, y_target, len_x_train)
         tf.reset_default_graph()
-        model_name = model_name+'_augmented'
-        x_target = np.append(x_target,x_train, axis=0)
-        y_target = np.append(y_target,y_train, axis=0)
-        classifier_one(dataset, model_name, x_target, y_target, len_x_train*2 )
-        tf.reset_default_graph()   
         
 classifier_multi()
