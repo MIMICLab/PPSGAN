@@ -128,7 +128,32 @@ def classifier_multi():
         y_target = np.append(y_target,y_train,axis=0)
         model_name = model_name+"_augmented"
         classifier_one(dataset, model_name, x_target, y_target, len_x_train)
+        tf.reset_default_graph() 
+        
+    pathes = os.listdir("results_pure_noise/generated/")
+    for path in pathes:
+        info = path.split('_')
+        dataset = info[0]
+        model_name = path
+        _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
+        data = np.load('results_pure_noise/generated/{}'.format(path))
+        x_target = data['x']
+        y_target = data['y']
+        classifier_one(dataset, model_name, x_target, y_target, len_x_train)
         tf.reset_default_graph()  
         
+    for path in pathes:
+        info = path.split('_')
+        dataset = info[0]
+        model_name = path
+        _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
+        data = np.load('results/generated/{}'.format(path))
+        x_target = data['x']
+        y_target = data['y']
+        x_target = np.append(x_target,x_train,axis=0)
+        y_target = np.append(y_target,y_train,axis=0)
+        model_name = model_name+"_augmented"
+        classifier_one(dataset, model_name, x_target, y_target, len_x_train)
+        tf.reset_default_graph() 
         
 classifier_multi()

@@ -178,6 +178,94 @@ def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sens
         
         
     return g, g_original, z_original, z_noise, z_noise_applied
+def generator_pure_noise(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sensitivity,
+              reuse=False,use_delta=True):
+    idx=0
+    current_input = x    
+    encoder = []
+    shapes_enc = []
+    with tf.name_scope("Encoder"):
+        for layer_i, n_output in enumerate(n_filters[1:]):
+            n_input = current_input.get_shape().as_list()[3]
+            shapes_enc.append(current_input.get_shape().as_list())
+            W = tf.Variable(xavier_init([filter_sizes[layer_i],
+                                            filter_sizes[layer_i],
+                                            n_input, n_output]))
+            var_G.append(W)
+            encoder.append(W)
+            conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')          
+            conv = tf.contrib.layers.batch_norm(conv,
+                                                updates_collections=None,
+                                                decay=0.9,
+                                                zero_debias_moving_mean=True,
+                                                is_training=True)
+            output = tf.nn.leaky_relu(conv)
+            current_input = output
+        encoder.reverse()
+        shapes_enc.reverse() 
+        z_flat = tf.layers.flatten(current_input)  
+        z_flat_dim = int(z_flat.get_shape()[1])
+        W_fc1 = tf.Variable(xavier_init([z_flat_dim, z_dim]))
+        var_G.append(W_fc1)
+        z = tf.matmul(z_flat,W_fc1)  
+        z_original = z        
+        z_noise = noise
+        z_noise_applied = noise
+        z = noise
+            
+    with tf.name_scope("Decoder"):         
+        W_fc2 = tf.Variable(xavier_init([z_dim, z_flat_dim]))
+        var_G.append(W_fc2)
+        
+        #noised Z
+        z_ = tf.matmul(z,W_fc2) 
+        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_ = tf.nn.relu(z_)
+        
+        #original Z using residual connection
+        z_original_ = tf.matmul(z_original,W_fc2)
+        z_original_ = tf.contrib.layers.batch_norm(z_original_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_original_ = tf.nn.relu(z_original_)
+        
+        current_input = tf.reshape(z_, [-1, 4, 4, n_filters[-1]])
+        curr_original = tf.reshape(z_original_, [-1, 4, 4, n_filters[-1]])
+        
+        for layer_i, shape in enumerate(shapes_enc):
+            W_enc = encoder[layer_i]
+            W = tf.Variable(he_normal_init(W_enc.get_shape().as_list()))
+            var_G.append(W)
+            deconv = tf.nn.conv2d_transpose(current_input, 
+                                            W,
+                                            tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+                                            strides=[1, 2, 2, 1], 
+                                            padding='SAME') 
+            deconv_original = tf.nn.conv2d_transpose(curr_original, 
+                                            W,
+                                            tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+                                            strides=[1, 2, 2, 1], 
+                                            padding='SAME')             
+            if layer_i == len(n_filters)-2:
+                output = tf.nn.sigmoid(deconv)
+                output_original = tf.nn.sigmoid(deconv_original)
+            else:
+                deconv = tf.contrib.layers.batch_norm(deconv,
+                                                      updates_collections=None,
+                                                      decay=0.9,
+                                                      zero_debias_moving_mean=True,
+                                                      is_training=True)    
+                deconv_original = tf.contrib.layers.batch_norm(deconv_original,
+                                                      updates_collections=None,
+                                                      decay=0.9,
+                                                      zero_debias_moving_mean=True,
+                                                      is_training=True) 
+                output = tf.nn.leaky_relu(deconv)
+                output_original = tf.nn.leaky_relu(deconv_original)
+            current_input = output
+            curr_original = output_original
+        g = current_input
+        g_original  = curr_original
+                
+    return g, g_original, z_original, z_noise, z_noise_applied
 
 def discriminator(x,var_D):
     current_input = x

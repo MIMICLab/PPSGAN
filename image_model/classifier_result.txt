@@ -34,3 +34,11 @@ dataset: fmnist model name: fmnist_fmnist_128_e.npz with best accuracy: 0.9501 f
 dataset: svhn model name: svhn_svhn_128_e.npz with best accuracy: 0.9111 fin.
 dataset: fmnist model name: fmnist_fmnist_128.npz with best accuracy: 0.9507 fin.
 dataset: fmnist model name: fmnist_fmnist_256_ed_0.1.npz with best accuracy: 0.9459 fin.
+dataset: mnist model name: mnist_mnist_256_ed_0.1.npz_augmented with best accuracy: 0.9967 fin.
+dataset: mnist model name: mnist_mnist_128_ed_0.1.npz_augmented with best accuracy: 0.9962 fin.
+dataset: mnist model name: mnist_mnist_256_e.npz_augmented with best accuracy: 0.9962 fin.
+dataset: fmnist model name: fmnist_fmnist_256_e_0.1.npz_augmented with best accuracy: 0.9688 fin.
+dataset: fmnist model name: fmnist_fmnist_128_e_0.1.npz_augmented with best accuracy: 0.9718 fin.
+dataset: cifar10 model name: cifar10_cifar10_256_ed_0.1.npz_augmented with best accuracy: 0.8791 fin.
+dataset: mnist model name: mnist_mnist_128_e.npz_augmented with best accuracy: 0.997 fin.
+dataset: fmnist model name: fmnist_fmnist_256_e.npz_augmented with best accuracy: 0.9733 fin.
