@@ -16,7 +16,7 @@ mb_size=256
 def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 
     NUM_CLASSES = 10
-    fp = open("classifier_result.txt",'a')
+    fp = open("classifier_noise_result.txt",'a')
     print("dataset: {}; model name: {} Evaluation start.".format(dataset,model_name))
     _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
 
@@ -100,35 +100,42 @@ def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 def classifier_multi():
     pathes = os.listdir("results/generated/")
     original = ["mnist","fmnist","cifar10","svhn"]
+        
     for dataset in original:
-        _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
-        classifier_one(dataset, "original", x_train, y_train, len_x_train)
-        tf.reset_default_graph() 
-
-    for path in pathes:
-        info = path.split('_')
-        dataset = info[0]
-        model_name = path
-        _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
-        data = np.load('results/generated/{}'.format(path))
-        x_target = data['x']
-        y_target = data['y']
-        classifier_one(dataset, model_name, x_target, y_target, len_x_train)
-        tf.reset_default_graph()
-        
-    for path in pathes:
-        info = path.split('_')
-        dataset = info[0]
-        model_name = path
-        _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
-        data = np.load('results/generated/{}'.format(path))
-        x_target = data['x']
-        y_target = data['y']
-        x_target = np.append(x_target,x_train,axis=0)
-        y_target = np.append(y_target,y_train,axis=0)
-        model_name = model_name+"_augmented"
-        classifier_one(dataset, model_name, x_target, y_target, len_x_train)
-        tf.reset_default_graph()  
-        
-        
+        _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)        
+        for sigma in range(1,16):
+            x_target = gaussian_filter(x_train, sigma)
+            classifier_one(dataset, "gaussian_sigma_{}".format(sigma), x_target, y_train, len_x_train)
+            tf.reset_default_graph() 
+        for sigma in range(1,16):
+            x_target = gaussian_laplace(x_train, sigma)
+            classifier_one(dataset, "laplace_sigma_{}".format(sigma), x_target, y_train, len_x_train)
+            tf.reset_default_graph()      
+          
+        for sigma in range(1,16):
+            sigma = sigma/10.0
+            noise = np.random.normal(0.0,sigma,(x_train.shape))
+            noise = noise.reshape(x_train.shape)
+            x_target = x_train + noise
+            classifier_one(dataset, "gaussian_noise_sigma_{}".format(sigma), 
+                           x_target, y_train, len_x_train)
+            tf.reset_default_graph()
+        for sigma in range(1,16):
+            sigma = sigma/10.0
+            noise = np.random.laplace(0.0,sigma,(x_train.shape))
+            noise = noise.reshape(x_train.shape)
+            x_target = x_train + noise
+            classifier_one(dataset, "laplace_noise_scale_{}".format(sigma), 
+                           x_target, y_train, len_x_train)
+            tf.reset_default_graph()     
+        for sigma in range(1,17):
+            x_target = uniform_filter(x_train, sigma)
+            classifier_one(dataset, "uniform_filter_size_{}".format(sigma), 
+                           x_target, y_train, len_x_train)
+            tf.reset_default_graph()
+        for sigma in range(2,17):
+            x_target = median_filter(x_train, size=sigma)
+            classifier_one(dataset, "median_filter_size_{}".format(sigma), 
+                           x_target, y_train, len_x_train)
+            tf.reset_default_graph()  
 classifier_multi()
