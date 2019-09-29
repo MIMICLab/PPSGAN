@@ -58,7 +58,8 @@ with graph.as_default():
         G_sample, G_zero, z_original, z_noise, z_noised = generator_pure_noise(input_shape, 
                                                                    n_filters, 
                                                                    filter_sizes, 
-                                                                   X, 
+                                                                   X,
+                                                                   Y,
                                                                    Z_noise, 
                                                                    var_G,
                                                                    z_dim,
@@ -167,26 +168,6 @@ with graph.as_default():
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                     print('Saved model at {} at step {}'.format(path, current_step)) 
                     
-        #calculate approximated global sensitivity            
-        for idx in range(num_batches_per_epoch):
-            X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
-            enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
-            enc_noise = np.random.uniform(-1.0,1.0,[mb_size,z_dim]).astype(np.float32)                   
-            max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
-                                                                   X: X_mb, 
-                                                                   Y: Y_mb, 
-                                                                   Z_noise: enc_zero, 
-                                                                   Z_S: enc_zero}) 
-            if idx == 0:
-                z_max = max_curr
-                z_min = min_curr
-            else:
-                z_max = np.maximum(z_max,max_curr)
-                z_min = np.minimum(z_min,min_curr)
-        z_sensitivity = np.abs(np.subtract(z_max,z_min))
-        print("Approximated Global Sensitivity:") 
-        print(z_sensitivity)        
-        z_sensitivity = np.tile(z_sensitivity,(mb_size,1)) 
         
         #Adversarial training           
         for it in range(num_batches_per_epoch*1000):
@@ -197,16 +178,14 @@ with graph.as_default():
                 _, D_curr, D_S_curr, D_C_curr = sess.run([D_solver, D_loss, D_S_loss, D_C_loss],
                                                          feed_dict={X: X_mb, 
                                                                    Y: Y_mb, 
-                                                                   Z_noise: enc_noise, 
-                                                                   Z_S: z_sensitivity}) 
+                                                                   Z_noise: enc_noise}) 
 
             summary, _, G_curr, G_S_curr, G_C_curr, G_z_curr = sess.run([merged, G_solver,
                                                                          G_loss,G_S_loss, G_C_loss,
                                                                          G_zero_loss],
                                                         feed_dict={X: X_mb, 
                                                                    Y: Y_mb,  
-                                                                   Z_noise: enc_noise,
-                                                                   Z_S: z_sensitivity}) 
+                                                                   Z_noise: enc_noise}) 
             current_step = tf.train.global_step(sess, global_step)
             train_writer.add_summary(summary,current_step)
         
@@ -224,8 +203,7 @@ with graph.as_default():
                 G_sample_curr, re_fake_curr = sess.run([G_sample, G_zero],
                                                        feed_dict={X: Xt_mb, 
                                                                   Y: Yt_mb, 
-                                                                  Z_noise: enc_noise, 
-                                                                  Z_S: z_sensitivity}) 
+                                                                  Z_noise: enc_noise}) 
                 
                 samples_flat = tf.reshape(G_sample_curr,[-1,width,height,channels]).eval()
                 img_set = np.append(Xt_mb[:mb_size], samples_flat[:mb_size], axis=0)         
@@ -238,23 +216,4 @@ with graph.as_default():
                 i += 1
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                 print('Saved model at {} at step {}'.format(path, current_step))
-                
-                #calculate approximated global sensitivity            
-                for idx in range(num_batches_per_epoch):
-                    X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
-                    enc_noise = np.random.uniform(-1.0,1.0,[mb_size,z_dim]).astype(np.float32)                   
-                    max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
-                                                                   X: X_mb, 
-                                                                   Y: Y_mb, 
-                                                                   Z_noise: enc_noise, 
-                                                                   Z_S: enc_zero}) 
-                    if idx == 0:
-                        z_max = max_curr
-                        z_min = min_curr
-                    else:
-                        z_max = np.maximum(z_max,max_curr)
-                        z_min = np.minimum(z_min,min_curr)
-                z_sensitivity = np.abs(np.subtract(z_max,z_min))
-                print("Approximated Global Sensitivity:") 
-                print(z_sensitivity)        
-                z_sensitivity = np.tile(z_sensitivity,(mb_size,1)) 
+ 

@@ -178,7 +178,7 @@ def generator(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sens
         
         
     return g, g_original, z_original, z_noise, z_noise_applied
-def generator_pure_noise(input_shape, n_filters, filter_sizes, x, noise, var_G, z_dim, sensitivity,
+def generator_pure_noise(input_shape, n_filters, filter_sizes, x,y, noise, var_G, z_dim,
               reuse=False,use_delta=True):
     idx=0
     current_input = x    
@@ -211,10 +211,10 @@ def generator_pure_noise(input_shape, n_filters, filter_sizes, x, noise, var_G, 
         z_original = z        
         z_noise = noise
         z_noise_applied = noise
-        z = noise
+        z = tf.concat([noise,y],1) 
             
     with tf.name_scope("Decoder"):         
-        W_fc2 = tf.Variable(xavier_init([z_dim, z_flat_dim]))
+        W_fc2 = tf.Variable(xavier_init([z_dim+10, z_flat_dim]))
         var_G.append(W_fc2)
         
         #noised Z
@@ -222,6 +222,7 @@ def generator_pure_noise(input_shape, n_filters, filter_sizes, x, noise, var_G, 
         z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z_ = tf.nn.relu(z_)
         
+        z_original = tf.concat([z_original,y],1) 
         #original Z using residual connection
         z_original_ = tf.matmul(z_original,W_fc2)
         z_original_ = tf.contrib.layers.batch_norm(z_original_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)

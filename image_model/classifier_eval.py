@@ -129,7 +129,6 @@ def classifier_multi():
         model_name = model_name+"_augmented"
         classifier_one(dataset, model_name, x_target, y_target, len_x_train)
         tf.reset_default_graph() 
-  
     pathes = os.listdir("results_pure_noise/generated/")
     for path in pathes:
         info = path.split('_')

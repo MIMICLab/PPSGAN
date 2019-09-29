@@ -53,10 +53,11 @@ def generate_one(dataset,model_name, z_dim,USE_DELTA):
 
             global_step = tf.Variable(0, name="global_step", trainable=False)        
 
-            G_sample, G_zero, z_original, z_noise, z_noised = generator(input_shape, 
+            G_sample, G_zero, z_original, z_noise, z_noised = generator_pure_noise(input_shape, 
                                                                        n_filters, 
                                                                        filter_sizes, 
-                                                                       X, 
+                                                                       X,
+                                                                       Y,
                                                                        Z_noise, 
                                                                        var_G,
                                                                        z_dim,
@@ -85,7 +86,7 @@ def generate_one(dataset,model_name, z_dim,USE_DELTA):
                                                                       logits = C_fake_logits))
 
             D_loss = D_S_loss + D_C_loss
-            G_loss = G_S_loss + G_C_loss + G_zero_loss
+            G_loss = G_S_loss + G_C_loss
 
 
             #sensitivity estimation
@@ -130,30 +131,7 @@ def generate_one(dataset,model_name, z_dim,USE_DELTA):
 
             saver.restore(sess,tf.train.latest_checkpoint(checkpoint_dir))        
 
-            #calculate approximated global sensitivity            
-            for idx in range(num_batches_per_epoch):
-                X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
-                enc_zero = np.zeros([mb_size,z_dim]).astype(np.float32) 
-                if USE_DELTA:
-                    enc_noise = np.random.normal(0.0,1.0,[mb_size,z_dim]).astype(np.float32)  
-                else:
-                    enc_noise = np.random.laplace(0.0,1.0,[mb_size,z_dim]).astype(np.float32)                  
-                max_curr, min_curr = sess.run([latent_max,latent_min], feed_dict={
-                                                                       X: X_mb, 
-                                                                       Y: Y_mb, 
-                                                                       Z_noise: enc_zero, 
-                                                                       Z_S: enc_zero}) 
-                if idx == 0:
-                    z_max = max_curr
-                    z_min = min_curr
-                else:
-                    z_max = np.maximum(z_max,max_curr)
-                    z_min = np.minimum(z_min,min_curr)
-            z_sensitivity = np.abs(np.subtract(z_max,z_min))
-            #print("Approximated Global Sensitivity:") 
-            #print(z_sensitivity)        
-            z_sensitivity = np.tile(z_sensitivity,(mb_size,1)) 
-
+            X_mb, Y_mb = next_batch(mb_size, x_train, y_train)
             x_train = np.append(x_train, X_mb, axis=0)
             y_train = np.append(y_train, Y_mb, axis=0)
             for i in range(num_batches_per_epoch):
@@ -166,8 +144,7 @@ def generate_one(dataset,model_name, z_dim,USE_DELTA):
                 G_sample_curr = sess.run(G_sample,
                                                   feed_dict={X: X_mb, 
                                                   Y: Y_mb, 
-                                                  Z_noise: enc_noise, 
-                                                  Z_S: z_sensitivity})                
+                                                  Z_noise: enc_noise})                
                 samples_flat = tf.reshape(G_sample_curr,[mb_size,width,height,channels]).eval()
                 if i == 0:
                     img_set = samples_flat
@@ -191,7 +168,8 @@ def generate_multi():
         info = path.split('_')
         dataset = info[0]
         model_name = path
-        z_dim = int(info[2])
+
+        z_dim = int(info[-1])
         if "e" in info:
             USE_DELTA = False
         else:

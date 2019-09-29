@@ -12,7 +12,7 @@ from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.filters import gaussian_laplace
 from scipy.ndimage.filters import median_filter
 from scipy.ndimage.filters import uniform_filter
-mb_size=256
+mb_size=512
 def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 
     NUM_CLASSES = 10
@@ -66,7 +66,7 @@ def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
             x_temp = np.append(x_test, x_test[:mb_size], axis=0)
             y_temp = np.append(y_test, y_test[:mb_size], axis=0)
             best_accuracy = 0.0
-            for it in range(num_batches_per_epoch*1000):
+            for it in range(num_batches_per_epoch*200):
                 X_mb, Y_mb = next_batch(mb_size, x_target, y_target)
                 _, C_curr = sess.run([C_solver, C_loss], feed_dict={X: X_mb, Y: Y_mb})
                 if it % 100 == 0:
@@ -128,12 +128,12 @@ def classifier_multi():
             classifier_one(dataset, "laplace_noise_scale_{}".format(sigma), 
                            x_target, y_train, len_x_train)
             tf.reset_default_graph()     
-        for sigma in range(1,17):
+        for sigma in [2,3,5,7,9]:
             x_target = uniform_filter(x_train, sigma)
             classifier_one(dataset, "uniform_filter_size_{}".format(sigma), 
                            x_target, y_train, len_x_train)
             tf.reset_default_graph()
-        for sigma in range(2,17):
+        for sigma in [2,3,5,7,9]:
             x_target = median_filter(x_train, size=sigma)
             classifier_one(dataset, "median_filter_size_{}".format(sigma), 
                            x_target, y_train, len_x_train)
