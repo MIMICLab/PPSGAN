@@ -66,3 +66,11 @@ dataset: fmnist model name: fmnist_fmnist_128_e.npz_augmented with best accuracy
 dataset: svhn model name: svhn_svhn_128_e.npz_augmented with best accuracy: 0.9508 fin.
 dataset: fmnist model name: fmnist_fmnist_128.npz_augmented with best accuracy: 0.9725 fin.
 dataset: fmnist model name: fmnist_fmnist_256_ed_0.1.npz_augmented with best accuracy: 0.9693 fin.
+dataset: fmnist model name: fmnist_fmnist_pure_noise_128.npz with best accuracy: 0.8735 fin.
+dataset: cifar10 model name: cifar10_cifar10_pure_noise_128.npz with best accuracy: 0.5458 fin.
+dataset: svhn model name: svhn_svhn_pure_noise_128.npz with best accuracy: 0.8632 fin.
+dataset: mnist model name: mnist_mnist_pure_noise_128.npz with best accuracy: 0.9815 fin.
+dataset: fmnist model name: fmnist_fmnist_pure_noise_128.npz_augmented with best accuracy: 0.9444 fin.
+dataset: cifar10 model name: cifar10_cifar10_pure_noise_128.npz_augmented with best accuracy: 0.7753 fin.
+dataset: svhn model name: svhn_svhn_pure_noise_128.npz_augmented with best accuracy: 0.9294 fin.
+dataset: mnist model name: mnist_mnist_pure_noise_128.npz_augmented with best accuracy: 0.9949 fin.

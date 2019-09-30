@@ -14,7 +14,7 @@ from utils.fid import get_fid
 
 
 def fid_is_eval():
-    pathes = os.listdir("results/generated/")
+    pathes = os.listdir("results_pure_noise/generated/")
     finished = []
     tmp_path = []
     for path in pathes:
@@ -27,7 +27,7 @@ def fid_is_eval():
         dataset = info[0]
         model_name = path
         if dataset == "cifar10":
-            data = np.load('results/generated/{}'.format(path))
+            data = np.load('results_pure_noise/generated/{}'.format(path))
             mb_size, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)  
             real_set = x_train
             img_set = data['x']

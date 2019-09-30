@@ -12,7 +12,7 @@ from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.filters import gaussian_laplace
 from scipy.ndimage.filters import median_filter
 from scipy.ndimage.filters import uniform_filter
-mb_size=256
+mb_size=512
 def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 
     NUM_CLASSES = 10
@@ -66,7 +66,7 @@ def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
             x_temp = np.append(x_test, x_test[:mb_size], axis=0)
             y_temp = np.append(y_test, y_test[:mb_size], axis=0)
             best_accuracy = 0.0
-            for it in range(num_batches_per_epoch*1000):
+            for it in range(num_batches_per_epoch*500):
                 X_mb, Y_mb = next_batch(mb_size, x_target, y_target)
                 _, C_curr = sess.run([C_solver, C_loss], feed_dict={X: X_mb, Y: Y_mb})
                 if it % 100 == 0:
@@ -100,6 +100,7 @@ def classifier_one(dataset, model_name, x_target, y_target, len_x_target):
 def classifier_multi():
     pathes = os.listdir("results/generated/")
     original = ["mnist","fmnist","cifar10","svhn"]
+    """    
     for dataset in original:
         _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
         classifier_one(dataset, "original", x_train, y_train, len_x_train)
@@ -129,18 +130,20 @@ def classifier_multi():
         model_name = model_name+"_augmented"
         classifier_one(dataset, model_name, x_target, y_target, len_x_train)
         tf.reset_default_graph() 
+    """
     pathes = os.listdir("results_pure_noise/generated/")
     for path in pathes:
         info = path.split('_')
         dataset = info[0]
         model_name = path
+        print(info)
         _, X_dim, width, height, channels,len_x_train, x_train, y_train, len_x_test, x_test, y_test  = data_loader(dataset)
         data = np.load('results_pure_noise/generated/{}'.format(path))
         x_target = data['x']
         y_target = data['y']
-        classifier_one(dataset, model_name, x_target, y_target, len_x_train)
+        #classifier_one(dataset, model_name, x_target, y_target, len_x_train)
         tf.reset_default_graph()  
-        
+      
     for path in pathes:
         info = path.split('_')
         dataset = info[0]

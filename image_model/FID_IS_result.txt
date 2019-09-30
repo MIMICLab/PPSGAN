@@ -31,6 +31,6 @@ FID: 49.6731071472168
 Calculating inception score for cifar10_cifar10_128_e.npz
 mean: 5.873647689819336 std: 0.13338249921798706
 Calculating Fréchet Inception Distance for cifar10_cifar10_pure_noise_128.npz
-FID: 49.42476272583008
+FID: 49.65640640258789
 Calculating inception score for cifar10_cifar10_pure_noise_128.npz
-mean: 5.533093452453613 std: 0.08074247092008591
+mean: 5.7122979164123535 std: 0.05472274497151375
